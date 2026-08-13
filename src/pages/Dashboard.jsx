@@ -1,9 +1,12 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
 import { 
   Plus, DollarSign, ShoppingBag, Clock, TrendingUp, ArrowUpRight 
 } from 'lucide-react'
 
 export default function Dashboard() {
+  const navigate = useNavigate()
+
   return (
     <div className="p-8 space-y-8 bg-slate-50 min-h-screen">
       {/* Cabeçalho */}
@@ -13,10 +16,16 @@ export default function Dashboard() {
           <p className="text-slate-500 text-sm">Acompanhamento geral de métricas e vendas do mês.</p>
         </div>
         <div className="flex gap-3">
-          <button className="flex items-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-800 px-4 py-2 rounded-lg text-sm font-medium transition">
+          <button 
+            onClick={() => navigate('/cotador')}
+            className="flex items-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-800 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer"
+          >
             <Plus size={16} /> Nova Cotação
           </button>
-          <button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm">
+          <button 
+            onClick={() => navigate('/pedidos')}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm cursor-pointer"
+          >
             <Plus size={16} /> Novo Pedido de Venda
           </button>
         </div>
@@ -63,7 +72,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Gráfico/Resumo de Mídias de Origem */}
+      {/* Vendas por Mídia de Origem */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <h3 className="text-lg font-bold text-slate-900 mb-4">Vendas por Mídia de Origem</h3>
         <div className="space-y-4">
