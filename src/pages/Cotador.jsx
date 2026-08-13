@@ -212,8 +212,8 @@ export default function Cotador() {
 
             <div className="space-y-2 text-sm text-slate-300">
               <div className="flex justify-between">
-                <span>Área Total ($m^2$):</span>
-                <span className="font-semibold text-white">{areaM2Total.toFixed(2)} $m^2$</span>
+                <span>Área Total (m²):</span>
+                <span className="font-semibold text-white">{areaM2Total.toFixed(2)} m²</span>
               </div>
 
               <div className="flex justify-between">
