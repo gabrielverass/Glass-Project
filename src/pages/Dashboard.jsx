@@ -1,32 +1,104 @@
-import React from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabaseClient'
 import { 
-  Plus, DollarSign, ShoppingBag, Clock, TrendingUp, ArrowUpRight 
+  DollarSign, ShoppingBag, Clock, TrendingUp, ArrowUpRight, Loader2, Calendar 
 } from 'lucide-react'
 
 export default function Dashboard() {
-  const navigate = useNavigate()
+  const [loading, setLoading] = useState(true)
+  const [filtroPeriodo, setFiltroPeriodo] = useState('mes') // 'hoje' | 'mes' | 'ano'
+  const [metricas, setMetricas] = useState({
+    faturamento: 0,
+    totalPedidos: 0,
+    emProducao: 0,
+    ultimosPedidos: []
+  })
+
+  // Recarrega os dados do Supabase sempre que o filtro mudar
+  useEffect(() => {
+    carregarDadosDashboard()
+  }, [filtroPeriodo])
+
+  const carregarDadosDashboard = async () => {
+    setLoading(true)
+    try {
+      let query = supabase.from('pedidos').select('*')
+
+      // Cálculo do período de data
+      const agora = new Date()
+      let dataInicio = new Date()
+
+      if (filtroPeriodo === 'hoje') {
+        dataInicio.setHours(0, 0, 0, 0)
+      } else if (filtroPeriodo === 'mes') {
+        dataInicio = new Date(agora.getFullYear(), agora.getMonth(), 1)
+      } else if (filtroPeriodo === 'ano') {
+        dataInicio = new Date(agora.getFullYear(), 0, 1)
+      }
+
+      // Filtra os pedidos cadastrados a partir da data calculada
+      query = query.gte('created_at', dataInicio.toISOString())
+
+      const { data: pedidos, error } = await query.order('created_at', { ascending: false })
+
+      if (!error && pedidos) {
+        const total = pedidos.reduce((acc, item) => acc + Number(item.valor_total || 0), 0)
+        const emProd = pedidos.filter(p => p.status === 'Em Produção' || p.status === 'Pendente').length
+
+        setMetricas({
+          faturamento: total,
+          totalPedidos: pedidos.length,
+          emProducao: emProd,
+          ultimosPedidos: pedidos.slice(0, 5)
+        })
+      }
+    } catch (err) {
+      console.error('Erro ao carregar métricas:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="p-8 space-y-8 bg-slate-50 min-h-screen">
-      {/* Cabeçalho */}
-      <div className="flex justify-between items-center">
+      {/* Cabeçalho com Filtro de Período */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Dashboard Comercial</h1>
-          <p className="text-slate-500 text-sm">Acompanhamento geral de métricas e vendas do mês.</p>
+          <p className="text-slate-500 text-sm">Acompanhamento de vendas e faturamento em tempo real.</p>
         </div>
-        <div className="flex gap-3">
+
+        {/* Seletor de Período */}
+        <div className="flex items-center bg-slate-200/80 p-1 rounded-xl gap-1 text-xs font-semibold self-start sm:self-auto border border-slate-300/50">
           <button 
-            onClick={() => navigate('/cotador')}
-            className="flex items-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-800 px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer"
+            onClick={() => setFiltroPeriodo('hoje')}
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+              filtroPeriodo === 'hoje' 
+                ? 'bg-white text-blue-600 shadow-sm font-bold' 
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
           >
-            <Plus size={16} /> Nova Cotação
+            Hoje
           </button>
           <button 
-            onClick={() => navigate('/pedidos')}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm cursor-pointer"
+            onClick={() => setFiltroPeriodo('mes')}
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+              filtroPeriodo === 'mes' 
+                ? 'bg-white text-blue-600 shadow-sm font-bold' 
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
           >
-            <Plus size={16} /> Novo Pedido de Venda
+            Este Mês
+          </button>
+          <button 
+            onClick={() => setFiltroPeriodo('ano')}
+            className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+              filtroPeriodo === 'ano' 
+                ? 'bg-white text-blue-600 shadow-sm font-bold' 
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Este Ano
           </button>
         </div>
       </div>
@@ -35,87 +107,82 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex justify-between items-center text-slate-500 mb-2">
-            <span className="text-sm font-medium">Faturamento Total</span>
+            <span className="text-sm font-medium">Faturamento</span>
             <DollarSign size={20} className="text-emerald-600" />
           </div>
-          <div className="text-2xl font-bold text-slate-900">R$ 48.250,00</div>
+          <div className="text-2xl font-bold text-slate-900">
+            {loading ? <Loader2 className="animate-spin text-slate-400" size={24} /> : `R$ ${metricas.faturamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+          </div>
           <span className="text-xs text-emerald-600 font-medium flex items-center gap-1 mt-2">
-            <ArrowUpRight size={14} /> +12% em relação ao mês anterior
+            <ArrowUpRight size={14} /> Período: {filtroPeriodo.toUpperCase()}
           </span>
         </div>
 
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex justify-between items-center text-slate-500 mb-2">
-            <span className="text-sm font-medium">Pedidos no Mês</span>
+            <span className="text-sm font-medium">Pedidos Cadastrados</span>
             <ShoppingBag size={20} className="text-blue-600" />
           </div>
-          <div className="text-2xl font-bold text-slate-900">34</div>
-          <span className="text-xs text-slate-500 mt-2 block">18 finalizados</span>
+          <div className="text-2xl font-bold text-slate-900">
+            {loading ? <Loader2 className="animate-spin text-slate-400" size={24} /> : metricas.totalPedidos}
+          </div>
+          <span className="text-xs text-slate-500 mt-2 block">No período selecionado</span>
         </div>
 
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex justify-between items-center text-slate-500 mb-2">
-            <span className="text-sm font-medium">Em Produção / Instalação</span>
+            <span className="text-sm font-medium">Em Produção / Pendente</span>
             <Clock size={20} className="text-amber-500" />
           </div>
-          <div className="text-2xl font-bold text-slate-900">12</div>
-          <span className="text-xs text-amber-600 font-medium mt-2 block">4 com prazo próximo</span>
+          <div className="text-2xl font-bold text-slate-900">
+            {loading ? <Loader2 className="animate-spin text-slate-400" size={24} /> : metricas.emProducao}
+          </div>
+          <span className="text-xs text-amber-600 font-medium mt-2 block">Aguardando entrega</span>
         </div>
 
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <div className="flex justify-between items-center text-slate-500 mb-2">
-            <span className="text-sm font-medium">Taxa de Conversão</span>
+            <span className="text-sm font-medium">Conexão Banco</span>
             <TrendingUp size={20} className="text-indigo-600" />
           </div>
-          <div className="text-2xl font-bold text-slate-900">68%</div>
-          <span className="text-xs text-indigo-600 font-medium mt-2 block">Origem principal: WhatsApp</span>
+          <div className="text-2xl font-bold text-emerald-600">Ativa</div>
+          <span className="text-xs text-slate-500 mt-2 block">Supabase Sincronizado</span>
         </div>
       </div>
 
-      {/* Vendas por Mídia de Origem */}
+      {/* Tabela de ÚLTIMOS PEDIDOS DO PERÍODO */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <h3 className="text-lg font-bold text-slate-900 mb-4">Vendas por Mídia de Origem</h3>
-        <div className="space-y-4">
-          <div>
-            <div className="flex justify-between text-sm font-medium text-slate-700 mb-1">
-              <span>WhatsApp</span>
-              <span>45% (15 pedidos)</span>
-            </div>
-            <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
-              <div className="bg-blue-600 h-full rounded-full" style={{ width: '45%' }}></div>
-            </div>
+        <h3 className="text-lg font-bold text-slate-900 mb-4">Últimos Pedidos do Período</h3>
+        {loading ? (
+          <div className="p-4 text-center text-slate-500"><Loader2 className="animate-spin inline mr-2" /> Atualizando relatório...</div>
+        ) : metricas.ultimosPedidos.length === 0 ? (
+          <p className="text-sm text-slate-500">Nenhum pedido encontrado no período selecionado (<strong>{filtroPeriodo}</strong>).</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm text-slate-600">
+              <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                <tr>
+                  <th className="p-3">Cliente</th>
+                  <th className="p-3">Valor Total</th>
+                  <th className="p-3">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {metricas.ultimosPedidos.map((ped, index) => (
+                  <tr key={ped.id || index}>
+                    <td className="p-3 font-medium text-slate-900">{ped.cliente || 'Cliente não identificado'}</td>
+                    <td className="p-3 font-semibold text-slate-800">R$ {Number(ped.valor_total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td className="p-3">
+                      <span className="bg-blue-100 text-blue-800 text-xs px-2.5 py-1 rounded-full font-medium">
+                        {ped.status || 'Pendente'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-
-          <div>
-            <div className="flex justify-between text-sm font-medium text-slate-700 mb-1">
-              <span>Instagram</span>
-              <span>25% (8 pedidos)</span>
-            </div>
-            <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
-              <div className="bg-indigo-500 h-full rounded-full" style={{ width: '25%' }}></div>
-            </div>
-          </div>
-
-          <div>
-            <div className="flex justify-between text-sm font-medium text-slate-700 mb-1">
-              <span>Google / Site</span>
-              <span>18% (6 pedidos)</span>
-            </div>
-            <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
-              <div className="bg-emerald-500 h-full rounded-full" style={{ width: '18%' }}></div>
-            </div>
-          </div>
-
-          <div>
-            <div className="flex justify-between text-sm font-medium text-slate-700 mb-1">
-              <span>Indicação</span>
-              <span>12% (5 pedidos)</span>
-            </div>
-            <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
-              <div className="bg-amber-500 h-full rounded-full" style={{ width: '12%' }}></div>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   )
