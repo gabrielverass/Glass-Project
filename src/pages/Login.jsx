@@ -14,7 +14,6 @@ export default function Login({ onLoginSuccess }) {
     setErro('')
 
     try {
-      // Busca o usuário no Supabase
       const { data, error } = await supabase
         .from('usuarios')
         .select('*')
@@ -27,25 +26,20 @@ export default function Login({ onLoginSuccess }) {
         return
       }
 
-      // Verifica a senha
       if (data.senha !== senhaInput.trim()) {
         setErro('Senha incorreta.')
         setLoading(false)
         return
       }
 
-      // Prepara os dados do usuário logado (incluindo o cargo)
       const userData = {
         id: data.id,
         nome: data.nome,
         usuario: data.usuario,
-        cargo: data.cargo // <-- Crucial para o filtro de telas funcionar
+        cargo: data.cargo
       }
 
-      // Salva no localStorage para manter a sessão
       localStorage.setItem('vidracaria_user', JSON.stringify(userData))
-      
-      // Notifica o App.jsx
       onLoginSuccess(userData)
     } catch (err) {
       setErro('Erro de conexão ao tentar fazer login.')
@@ -55,7 +49,7 @@ export default function Login({ onLoginSuccess }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 relative">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 space-y-6">
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-bold text-slate-900">Millenium Glass Esquadrias</h1>
@@ -100,6 +94,20 @@ export default function Login({ onLoginSuccess }) {
             {loading ? <Loader2 className="animate-spin" size={18} /> : 'Acessar Sistema'}
           </button>
         </form>
+
+        {/* Assinatura no Rodapé do Cartão de Login */}
+        <div className="pt-4 border-t border-slate-100 text-center select-none">
+          <span className="text-[11px] tracking-wider text-slate-400 font-mono">
+            Powered by <strong className="text-slate-700 font-bold">Gv Dev Systems</strong>
+          </span>
+        </div>
+      </div>
+
+      {/* Assinatura discreta no rodapé da tela escura */}
+      <div className="absolute bottom-4 text-center select-none">
+        <span className="text-[10px] tracking-widest text-slate-600 font-mono uppercase">
+          Gv Dev Systems • Soluções Web
+        </span>
       </div>
     </div>
   )
