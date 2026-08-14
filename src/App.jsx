@@ -47,8 +47,8 @@ export default function App() {
         {/* Sidebar Nav */}
         <aside className="w-64 bg-slate-900 text-white flex flex-col border-r border-slate-800">
           <div className="p-6 border-b border-slate-800">
-            <h2 className="text-xl font-bold text-blue-400 tracking-tight">Vidraçaria App</h2>
-            <span className="text-xs text-slate-400 font-medium">Gestão & Esquadrias</span>
+            <h2 className="text-xl font-bold text-blue-400 tracking-tight">Millenium Glass Esquadrias</h2>
+            <span className="text-xs text-slate-400 font-medium">Gestão & Estoque</span>
           </div>
           
           <nav className="flex-1 p-4 space-y-1">
