@@ -48,7 +48,7 @@ export default function Login({ onLoginSuccess }) {
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md space-y-6">
         <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold text-slate-900">Vidraçaria App</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Millenium Glass</h1>
           <p className="text-slate-500 text-sm">Acesse com seu usuário e senha</p>
         </div>
 
