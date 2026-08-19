@@ -1,395 +1,493 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import { Calculator, DollarSign, Save, CheckCircle, Loader2, FileText, Send } from 'lucide-react'
+import { 
+  Plus, Search, Trash2, Edit3, MessageCircle, 
+  CheckCircle2, AlertCircle, Loader2, X, Calendar, DollarSign
+} from 'lucide-react'
 
 export default function Cotador() {
-  const [vidrosEstoque, setVidrosEstoque] = useState([])
+  const [cotacoes, setCotacoes] = useState([])
   const [loading, setLoading] = useState(true)
+  const [busca, setBusca] = useState('')
+  const [modalAberta, setModalAberta] = useState(false)
+  const [cotacaoEmEdicao, setCotacaoEmEdicao] = useState(null)
+
+  // Estados do Formulário / Modal
+  const [clienteObra, setClienteObra] = useState('')
+  const [dataCotacao, setDataCotacao] = useState(new Date().toISOString().split('T')[0])
+  const [status, setStatus] = useState('Aberta')
+  const [observacoes, setObservacoes] = useState('')
+  const [vidros, setVidros] = useState([{ id: 1, distribuidora: '', descricao: '', valor: '' }])
+  const [aluminios, setAluminios] = useState([{ id: 1, distribuidora: '', descricao: '', valor: '' }])
   const [salvando, setSalvando] = useState(false)
-  const [sucesso, setSucesso] = useState('')
 
-  // Dados do formulário
-  const [cliente, setCliente] = useState('')
-  const [telefone, setTelefone] = useState('')
-  const [vidroSelecionado, setVidroSelecionado] = useState('')
-  const [largura, setLargura] = useState('')
-  const [altura, setAltura] = useState('')
-  const [quantidade, setQuantidade] = useState('1')
-  const [maoDeObra, setMaoDeObra] = useState('0')
-  const [margemLucro, setMargemLucro] = useState('30')
-
-  useEffect(() => {
-    carregarVidros()
-  }, [])
-
-  const carregarVidros = async () => {
+  // 1. Carregar cotações do Supabase
+  const carregarCotacoes = async () => {
     setLoading(true)
     try {
       const { data, error } = await supabase
-        .from('estoque')
+        .from('cotacoes')
         .select('*')
-        .eq('categoria', 'Vidros')
+        .order('created_at', { ascending: false })
 
       if (!error && data) {
-        setVidrosEstoque(data)
-        if (data.length > 0) setVidroSelecionado(data[0].id)
+        setCotacoes(data)
       }
     } catch (err) {
-      console.error('Erro ao carregar vidros:', err)
+      console.error('Erro ao buscar cotações:', err)
     } finally {
       setLoading(false)
     }
   }
 
-  // Cálculos Automáticos
-  const itemVidro = vidrosEstoque.find(v => String(v.id) === String(vidroSelecionado))
-  const largNum = Number(largura || 0)
-  const altNum = Number(altura || 0)
-  const qtdNum = Number(quantidade || 1)
+  useEffect(() => {
+    carregarCotacoes()
+  }, [])
 
-  const areaM2Unitario = largNum * altNum
-  const areaM2Total = areaM2Unitario * qtdNum
+  // 2. Manipular Linhas de Vidro e Alumínio
+  const addVidro = () => setVidros([...vidros, { id: Date.now(), distribuidora: '', descricao: '', valor: '' }])
+  const removeVidro = (id) => setVidros(vidros.filter(v => v.id !== id))
+  const updateVidro = (id, campo, val) => setVidros(vidros.map(v => v.id === id ? { ...v, [campo]: val } : v))
 
-  const precoCustoM2 = itemVidro ? Number(itemVidro.preco_custo || 0) : 0
-  const precoVendaM2 = itemVidro ? Number(itemVidro.preco_venda || 0) : 0
+  const addAluminio = () => setAluminios([...aluminios, { id: Date.now(), distribuidora: '', descricao: '', valor: '' }])
+  const removeAluminio = (id) => setAluminios(aluminios.filter(a => a.id !== id))
+  const updateAluminio = (id, campo, val) => setAluminios(aluminios.map(a => a.id === id ? { ...a, [campo]: val } : a))
 
-  const custoVidroTotal = areaM2Total * precoCustoM2
-  const valorBaseVenda = areaM2Total * precoVendaM2
-  const valorMaoObra = Number(maoDeObra || 0)
-  const porcentagemExtra = Number(margemLucro || 0) / 100
+  // 3. Cálculo da Melhor Combinação
+  const calcularMelhorCombinacao = () => {
+    const totaisVidros = vidros.reduce((acc, item) => {
+      const dist = item.distribuidora.trim()
+      const val = parseFloat(item.valor) || 0
+      if (dist && val > 0) acc[dist] = (acc[dist] || 0) + val
+      return acc
+    }, {})
 
-  const subtotal = valorBaseVenda + valorMaoObra
-  const valorTotalOrcamento = subtotal + (subtotal * porcentagemExtra)
+    const totaisAluminios = aluminios.reduce((acc, item) => {
+      const dist = item.distribuidora.trim()
+      const val = parseFloat(item.valor) || 0
+      if (dist && val > 0) acc[dist] = (acc[dist] || 0) + val
+      return acc
+    }, {})
 
-  // Salvar Orçamento
-  const handleSalvarCotacao = async (e) => {
-    if (e) e.preventDefault()
-    if (!cliente.trim()) {
-      alert('Informe o nome do cliente para salvar o orçamento.')
+    let melhorVidro = { distribuidora: '-', valor: 0 }
+    Object.entries(totaisVidros).forEach(([dist, val]) => {
+      if (melhorVidro.valor === 0 || val < melhorVidro.valor) {
+        melhorVidro = { distribuidora: dist, valor: val }
+      }
+    })
+
+    let melhorAluminio = { distribuidora: '-', valor: 0 }
+    Object.entries(totaisAluminios).forEach(([dist, val]) => {
+      if (melhorAluminio.valor === 0 || val < melhorAluminio.valor) {
+        melhorAluminio = { distribuidora: dist, valor: val }
+      }
+    })
+
+    const totalGeral = (melhorVidro.valor || 0) + (melhorAluminio.valor || 0)
+    return { melhorVidro, melhorAluminio, totalGeral, totaisVidros, totaisAluminios }
+  }
+
+  const melhores = calcularMelhorCombinacao()
+
+  // 4. Abrir Modal para Criar ou Editar
+  const abrirModalNovo = () => {
+    setCotacaoEmEdicao(null)
+    setClienteObra('')
+    setDataCotacao(new Date().toISOString().split('T')[0])
+    setStatus('Aberta')
+    setObservacoes('')
+    setVidros([{ id: 1, distribuidora: '', descricao: '', valor: '' }])
+    setAluminios([{ id: 1, distribuidora: '', descricao: '', valor: '' }])
+    setModalAberta(true)
+  }
+
+  const abrirModalEdicao = (cot) => {
+    setCotacaoEmEdicao(cot)
+    setClienteObra(cot.cliente_obra || '')
+    setDataCotacao(cot.data_cotacao || '')
+    setStatus(cot.status || 'Aberta')
+    setObservacoes(cot.observacoes || '')
+    setVidros(cot.vidros || [{ id: 1, distribuidora: '', descricao: '', valor: '' }])
+    setAluminios(cot.aluminios || [{ id: 1, distribuidora: '', descricao: '', valor: '' }])
+    setModalAberta(true)
+  }
+
+  // 5. Salvar / Atualizar no Supabase
+  const handleSalvar = async (e) => {
+    e.preventDefault()
+    if (!clienteObra.trim()) {
+      alert('Informe o nome do Cliente / Obra!')
       return
     }
 
     setSalvando(true)
-    setSucesso('')
+    const payload = {
+      cliente_obra: clienteObra,
+      data_cotacao: dataCotacao,
+      status: status,
+      vidros: vidros,
+      aluminios: aluminios,
+      melhor_combinacao: melhores,
+      observacoes: observacoes,
+      valor_total: melhores.totalGeral
+    }
 
     try {
-      const novaCotacao = {
-        cliente: cliente.trim(),
-        descricao: `${qtdNum}x ${itemVidro?.nome || 'Vidro'} (${largNum}m x ${altNum}m)`,
-        largura: largNum,
-        altura: altNum,
-        area_m2: areaM2Total,
-        valor_total: valorTotalOrcamento,
-        status: 'Orçamento'
-      }
-
-      const { error } = await supabase.from('cotacoes').insert([novaCotacao])
-
-      if (!error) {
-        setSucesso('Orçamento salvo com sucesso!')
-        setTimeout(() => setSucesso(''), 4000)
+      if (cotacaoEmEdicao) {
+        await supabase.from('cotacoes').update(payload).eq('id', cotacaoEmEdicao.id)
       } else {
-        alert(`Erro ao salvar: ${error.message}`)
+        await supabase.from('cotacoes').insert([payload])
       }
+      setModalAberta(false)
+      carregarCotacoes()
     } catch (err) {
-      alert('Erro de conexão ao salvar cotação.')
+      alert('Erro ao salvar no banco de dados.')
     } finally {
       setSalvando(false)
     }
   }
 
-  // GERAR PDF COM LAYOUT PROFISSIONAL
-  const handleGerarPDF = () => {
-    if (!cliente.trim()) {
-      alert('Preencha pelo menos o nome do cliente para gerar o PDF.')
-      return
+  // 6. Excluir Cotação
+  const handleExcluir = async (id) => {
+    if (window.confirm('Tem certeza que deseja excluir esta cotação?')) {
+      await supabase.from('cotacoes').delete().eq('id', id)
+      carregarCotacoes()
     }
-
-    const dataAtual = new Date().toLocaleDateString('pt-BR')
-    const janelaImpressao = window.open('', '_blank', 'width=800,height=900')
-
-    const conteudoHTML = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Orçamento - Millenium Glass Esquadrias</title>
-          <style>
-            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1e293b; padding: 40px; margin: 0; }
-            .header { border-b: 2px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: center; }
-            .logo { font-size: 24px; font-weight: bold; color: #1e3a8a; }
-            .sub { font-size: 13px; color: #64748b; margin-top: 4px; }
-            .doc-title { text-align: right; font-size: 20px; font-weight: bold; color: #2563eb; }
-            .info-box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; rounded-radius: 8px; margin-bottom: 30px; display: flex; justify-content: space-between; }
-            table { w-full; width: 100%; border-collapse: collapse; margin-bottom: 30px; }
-            th { background: #f1f5f9; text-align: left; padding: 12px; font-size: 13px; color: #475569; border-bottom: 2px solid #cbd5e1; }
-            td { padding: 12px; font-size: 14px; border-bottom: 1px solid #e2e8f0; }
-            .total-card { background: #0f172a; color: white; padding: 20px; border-radius: 8px; text-align: right; }
-            .total-title { font-size: 12px; color: #94a3b8; text-transform: uppercase; }
-            .total-value { font-size: 28px; font-weight: bold; color: #34d399; margin-top: 5px; }
-            .footer { margin-top: 50px; font-size: 12px; color: #94a3b8; text-align: center; border-t: 1px solid #e2e8f0; padding-top: 20px; }
-            @media print {
-              body { padding: 0; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div>
-              <div class="logo">Millenium Glass Esquadrias</div>
-              <div class="sub">Gestão & Soluções em Vidros e Esquadrias</div>
-            </div>
-            <div>
-              <div class="doc-title">ORÇAMENTO</div>
-              <div class="sub">Data: ${dataAtual}</div>
-            </div>
-          </div>
-
-          <div class="info-box">
-            <div>
-              <strong>CLIENTE:</strong> ${cliente}<br>
-              ${telefone ? `<strong>CONTATO:</strong> ${telefone}` : ''}
-            </div>
-            <div>
-              <strong>VALIDADE:</strong> 10 dias
-            </div>
-          </div>
-
-          <table>
-            <thead>
-              <tr>
-                <th>Especificação do Material</th>
-                <th>Dimensões</th>
-                <th>Qtd</th>
-                <th>Área Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><strong>${itemVidro?.nome || 'Vidro Personalizado'}</strong></td>
-                <td>${largNum}m (L) x ${altNum}m (A)</td>
-                <td>${qtdNum}</td>
-                <td>${areaM2Total.toFixed(2)} m²</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div class="total-card">
-            <div class="total-title">Valor Total da Proposta</div>
-            <div class="total-value">R$ ${valorTotalOrcamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-          </div>
-
-          <div class="footer">
-            <p>Agradecemos a preferência! Dúvidas ou confirmações, entre em contato conosco.</p>
-            <p>Millenium Glass Esquadrias • Qualidade e Segurança</p>
-          </div>
-
-          <script>
-            window.onload = function() { window.print(); }
-          </script>
-        </body>
-      </html>
-    `
-
-    janelaImpressao.document.write(conteudoHTML)
-    janelaImpressao.document.close()
   }
 
-  // ENVIAR VIA WHATSAPP
-  const handleEnviarWhatsApp = () => {
-    if (!cliente.trim()) {
-      alert('Informe o nome do cliente para enviar pelo WhatsApp.')
-      return
-    }
+  // 7. Gerador de Resumo para o WhatsApp
+  const compartilharWhatsApp = (c) => {
+    const vDist = c.melhor_combinacao?.melhorVidro?.distribuidora || '-'
+    const vVal = c.melhor_combinacao?.melhorVidro?.valor?.toFixed(2) || '0.00'
+    const aDist = c.melhor_combinacao?.melhorAluminio?.distribuidora || '-'
+    const aVal = c.melhor_combinacao?.melhorAluminio?.valor?.toFixed(2) || '0.00'
+    const total = c.valor_total?.toFixed(2) || '0.00'
 
-    const mensagem = `Olá *${cliente}*! Tudo bem?%0A%0A` +
-      `Segue a cotação da *Millenium Glass Esquadrias*:%0A%0A` +
-      `📌 *Item:* ${qtdNum}x ${itemVidro?.nome || 'Vidro'} (${largNum}m x ${altNum}m)%0A` +
-      `📐 *Área Total:* ${areaM2Total.toFixed(2)} m²%0A` +
-      `💰 *Valor Total:* R$ ${valorTotalOrcamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}%0A%0A` +
-      `Ficamos à disposição para agendar a medição e instalação!`
+    const texto = `*MILLENIUM GLASS - LEVANTAMENTO DE INSUMOS*\n` +
+      `📌 *Obra:* ${c.cliente_obra}\n` +
+      `📅 *Data:* ${new Date(c.data_cotacao).toLocaleDateString('pt-BR')}\n` +
+      `--------------------------------\n` +
+      `💎 *Vidros:* ${vDist} (R$ ${vVal})\n` +
+      `🛠 *Alumínios/Acessórios:* ${aDist} (R$ ${aVal})\n` +
+      `--------------------------------\n` +
+      `💰 *MENOR CUSTO COMBINADO:* R$ ${total}\n` +
+      (c.observacoes ? `📝 *Obs:* ${c.observacoes}\n` : '')
 
-    const numLimpo = telefone.replace(/\D/g, '')
-    const url = numLimpo ? `https://wa.me/55${numLimpo}?text=${mensagem}` : `https://wa.me/?text=${mensagem}`
-    window.open(url, '_blank')
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`, '_blank')
   }
+
+  // Filtro de Busca
+  const cotacoesFiltradas = cotacoes.filter(c => 
+    c.cliente_obra?.toLowerCase().includes(busca.toLowerCase())
+  )
 
   return (
-    <div className="p-8 space-y-8 bg-slate-50 min-h-screen">
-      {/* Cabeçalho */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Cotador de Insumos e Esquadrias</h1>
-        <p className="text-slate-500 text-sm">Calcule o preço exato de projetos e gere propostas em PDF.</p>
+    <div className="p-8 max-w-7xl mx-auto space-y-6">
+      
+      {/* Topo / Cabeçalho */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Cotador de Insumos</h1>
+          <p className="text-sm text-slate-500">Lance os orçamentos de distribuidores para fechar pelo menor custo combinado.</p>
+        </div>
+        <button 
+          onClick={abrirModalNovo}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2.5 rounded-xl shadow transition flex items-center gap-2 text-sm cursor-pointer"
+        >
+          <Plus size={18} /> Nova Cotação
+        </button>
       </div>
 
-      {sucesso && (
-        <div className="bg-emerald-50 text-emerald-700 p-4 rounded-xl border border-emerald-200 flex items-center gap-2 font-medium text-sm">
-          <CheckCircle size={18} /> {sucesso}
+      {/* Barra de Pesquisa */}
+      <div className="relative">
+        <Search size={18} className="absolute left-3.5 top-3 text-slate-400" />
+        <input 
+          type="text" placeholder="Buscar por cliente / obra..."
+          value={busca} onChange={e => setBusca(e.target.value)}
+          className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm shadow-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        />
+      </div>
+
+      {/* Lista de Cards de Cotações */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20 text-slate-400 text-sm gap-2">
+          <Loader2 className="animate-spin" size={20} /> Carregando cotações...
+        </div>
+      ) : cotacoesFiltradas.length === 0 ? (
+        <div className="text-center py-16 bg-white border border-dashed border-slate-300 rounded-2xl p-8">
+          <p className="text-sm text-slate-500">Nenhuma cotação encontrada.</p>
+          <button onClick={abrirModalNovo} className="mt-3 text-sm font-semibold text-blue-600 hover:underline">
+            + Criar a primeira cotação de insumos
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {cotacoesFiltradas.map((c) => {
+            const vComb = c.melhor_combinacao?.melhorVidro
+            const aComb = c.melhor_combinacao?.melhorAluminio
+
+            return (
+              <div key={c.id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
+                
+                {/* Cabeçalho do Card */}
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="font-bold text-slate-800 text-base">{c.cliente_obra}</h3>
+                    <span className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                      <Calendar size={12} /> Cotada em {new Date(c.data_cotacao).toLocaleDateString('pt-BR')}
+                    </span>
+                  </div>
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
+                    c.status === 'Fechada' ? 'bg-emerald-100 text-emerald-700' :
+                    c.status === 'Cancelada' ? 'bg-red-100 text-red-700' :
+                    'bg-blue-100 text-blue-700'
+                  }`}>
+                    • {c.status}
+                  </span>
+                </div>
+
+                {/* Resumo de Fornecedores */}
+                <div className="grid grid-cols-2 gap-3 py-3 border-y border-slate-100 text-xs">
+                  <div>
+                    <span className="text-slate-400 font-medium block mb-1">VIDROS</span>
+                    {c.vidros && c.vidros.length > 0 ? (
+                      c.vidros.map((v, idx) => (
+                        <div key={idx} className="flex justify-between py-0.5 text-slate-700 font-medium">
+                          <span className="truncate pr-1">{v.distribuidora || '-'}</span>
+                          <span className="font-bold">R$ {parseFloat(v.valor || 0).toFixed(2)}</span>
+                        </div>
+                      ))
+                    ) : <span className="text-slate-400 italic">Sem itens</span>}
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 font-medium block mb-1">ACESSÓRIOS / ALUMÍNIO</span>
+                    {c.aluminios && c.aluminios.length > 0 ? (
+                      c.aluminios.map((a, idx) => (
+                        <div key={idx} className="flex justify-between py-0.5 text-slate-700 font-medium">
+                          <span className="truncate pr-1">{a.distribuidora || '-'}</span>
+                          <span className="font-bold">R$ {parseFloat(a.valor || 0).toFixed(2)}</span>
+                        </div>
+                      ))
+                    ) : <span className="text-slate-400 italic">Sem itens</span>}
+                  </div>
+                </div>
+
+                {/* Box de Menor Custo Combinado */}
+                <div className="bg-slate-900 text-white rounded-xl p-3.5 my-3">
+                  <span className="text-[10px] uppercase tracking-wider text-blue-400 font-bold block">
+                    Menor Custo Combinado
+                  </span>
+                  <div className="text-lg font-extrabold text-white mt-0.5">
+                    R$ {parseFloat(c.valor_total || 0).toFixed(2)}
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-1">
+                    {vComb?.distribuidora !== '-' ? vComb?.distribuidora : 'Vidro'} + {aComb?.distribuidora !== '-' ? aComb?.distribuidora : 'Acessórios'}
+                  </p>
+                </div>
+
+                {/* Observações */}
+                {c.observacoes && (
+                  <p className="text-xs text-slate-500 italic bg-slate-50 p-2 rounded-lg mb-3">
+                    "{c.observacoes}"
+                  </p>
+                )}
+
+                {/* Ações do Card */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <button 
+                    onClick={() => compartilharWhatsApp(c)}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 hover:bg-emerald-50 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
+                  >
+                    <MessageCircle size={15} /> Gerar WhatsApp
+                  </button>
+
+                  <div className="flex gap-1">
+                    <button 
+                      onClick={() => abrirModalEdicao(c)}
+                      className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                      title="Editar"
+                    >
+                      <Edit3 size={16} />
+                    </button>
+                    <button 
+                      onClick={() => handleExcluir(c.id)}
+                      className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                      title="Excluir"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            )
+          })}
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Formulário de Cálculo */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-6">
-          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <Calculator size={20} className="text-blue-600" /> Parâmetros da Medida
-          </h2>
-
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* Modal de Nova Cotação / Edição */}
+      {modalAberta && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in">
+            
+            {/* Topo da Modal */}
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Nome do Cliente / Projeto *</label>
-                <input 
-                  type="text" 
-                  placeholder="Ex: Gabriel Veras"
-                  value={cliente}
-                  onChange={(e) => setCliente(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:border-blue-600 focus:outline-none"
-                />
+                <h2 className="text-base font-bold text-slate-800">
+                  {cotacaoEmEdicao ? 'Editar Cotação de Insumos' : 'Nova Cotação de Insumos'}
+                </h2>
+                <p className="text-xs text-slate-500">Lance os preços de cada distribuidora — o menor custo é calculado automaticamente.</p>
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Telefone / WhatsApp (Opcional)</label>
-                <input 
-                  type="text" 
-                  placeholder="(85) 98888-7777"
-                  value={telefone}
-                  onChange={(e) => setTelefone(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:border-blue-600 focus:outline-none"
-                />
-              </div>
+              <button onClick={() => setModalAberta(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={20} />
+              </button>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Selecione o Vidro do Estoque</label>
-              {loading ? (
-                <div className="text-sm text-slate-400 flex items-center gap-2"><Loader2 className="animate-spin" size={16}/> Carregando estoque...</div>
-              ) : vidrosEstoque.length === 0 ? (
-                <p className="text-xs text-amber-600">Nenhum vidro cadastrado no Estoque na categoria 'Vidros'.</p>
-              ) : (
-                <select 
-                  value={vidroSelecionado}
-                  onChange={(e) => setVidroSelecionado(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:border-blue-600 focus:outline-none bg-white"
+            {/* Formulário com Scroll */}
+            <form onSubmit={handleSalvar} className="flex-1 flex flex-col overflow-hidden">
+              <div className="p-6 overflow-y-auto space-y-6 flex-1">
+                
+                {/* Cliente / Data / Status */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Cliente / Obra</label>
+                    <input 
+                      type="text" required placeholder="Ex.: Residencial Vila Nova - Box e Janelas"
+                      value={clienteObra} onChange={e => setClienteObra(e.target.value)}
+                      className="w-full p-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Data da cotação</label>
+                      <input 
+                        type="date" required value={dataCotacao} onChange={e => setDataCotacao(e.target.value)}
+                        className="w-full p-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Status</label>
+                      <select 
+                        value={status} onChange={e => setStatus(e.target.value)}
+                        className="w-full p-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                      >
+                        <option value="Aberta">Aberta</option>
+                        <option value="Fechada">Fechada</option>
+                        <option value="Cancelada">Cancelada</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <hr className="border-slate-100" />
+
+                {/* Seção de Vidros */}
+                <div>
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Vidros — Distribuidoras</h3>
+                    <button type="button" onClick={addVidro} className="text-xs flex items-center gap-1 text-blue-600 font-semibold hover:bg-blue-50 px-2 py-1 rounded-lg">
+                      <Plus size={14} /> Item
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {vidros.map((item) => (
+                      <div key={item.id} className="flex gap-2 items-center">
+                        <input type="text" placeholder="Distribuidora (ex: ExtraGlass)" value={item.distribuidora} onChange={e => updateVidro(item.id, 'distribuidora', e.target.value)} className="flex-1 p-2 border border-slate-300 rounded-lg text-sm" />
+                        <input type="text" placeholder="Descrição do item" value={item.descricao} onChange={e => updateVidro(item.id, 'descricao', e.target.value)} className="flex-[1.5] p-2 border border-slate-300 rounded-lg text-sm" />
+                        <div className="relative w-32">
+                          <span className="absolute left-3 top-2 text-slate-400 text-xs font-bold">R$</span>
+                          <input type="number" step="0.01" placeholder="0,00" value={item.valor} onChange={e => updateVidro(item.id, 'valor', e.target.value)} className="w-full pl-8 p-2 border border-slate-300 rounded-lg text-sm" />
+                        </div>
+                        <button type="button" onClick={() => removeVidro(item.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Seção de Alumínio / Acessórios */}
+                <div>
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Acessórios / Alumínio — Distribuidoras</h3>
+                    <button type="button" onClick={addAluminio} className="text-xs flex items-center gap-1 text-blue-600 font-semibold hover:bg-blue-50 px-2 py-1 rounded-lg">
+                      <Plus size={14} /> Item
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {aluminios.map((item) => (
+                      <div key={item.id} className="flex gap-2 items-center">
+                        <input type="text" placeholder="Distribuidora (ex: Aço Alumínio)" value={item.distribuidora} onChange={e => updateAluminio(item.id, 'distribuidora', e.target.value)} className="flex-1 p-2 border border-slate-300 rounded-lg text-sm" />
+                        <input type="text" placeholder="Descrição do item" value={item.descricao} onChange={e => updateAluminio(item.id, 'descricao', e.target.value)} className="flex-[1.5] p-2 border border-slate-300 rounded-lg text-sm" />
+                        <div className="relative w-32">
+                          <span className="absolute left-3 top-2 text-slate-400 text-xs font-bold">R$</span>
+                          <input type="number" step="0.01" placeholder="0,00" value={item.valor} onChange={e => updateAluminio(item.id, 'valor', e.target.value)} className="w-full pl-8 p-2 border border-slate-300 rounded-lg text-sm" />
+                        </div>
+                        <button type="button" onClick={() => removeAluminio(item.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Bloco de Melhor Combinação Calculada */}
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-2">
+                  <h3 className="text-xs font-bold text-blue-900 uppercase tracking-wider flex items-center gap-2">
+                    <CheckCircle2 size={16} className="text-blue-600" /> Melhor combinação calculada
+                  </h3>
+                  {melhores.totalGeral > 0 ? (
+                    <div className="text-xs text-blue-800 space-y-1 ml-6 font-medium">
+                      {melhores.melhorVidro.valor > 0 && (
+                        <p>Vidros: <strong>{melhores.melhorVidro.distribuidora}</strong> — R$ {melhores.melhorVidro.valor.toFixed(2)}</p>
+                      )}
+                      {melhores.melhorAluminio.valor > 0 && (
+                        <p>Acessórios: <strong>{melhores.melhorAluminio.distribuidora}</strong> — R$ {melhores.melhorAluminio.valor.toFixed(2)}</p>
+                      )}
+                      <div className="pt-2 mt-2 border-t border-blue-200/60">
+                        <p className="font-bold text-sm text-blue-950">Total Combinado: R$ {melhores.totalGeral.toFixed(2)}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-blue-600 ml-6">Preencha os valores para calcular a melhor combinação.</p>
+                  )}
+                </div>
+
+                {/* Observações */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Observações</label>
+                  <textarea 
+                    rows="3" placeholder="Prazos, condições de pagamento, pendências..."
+                    value={observacoes} onChange={e => setObservacoes(e.target.value)}
+                    className="w-full p-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                  ></textarea>
+                </div>
+
+              </div>
+
+              {/* Rodapé da Modal */}
+              <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                <button 
+                  type="button" onClick={() => setModalAberta(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition cursor-pointer"
                 >
-                  {vidrosEstoque.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.nome} - (R$ {Number(v.preco_venda).toFixed(2)}/m²)
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Largura (Metros)</label>
-                <input 
-                  type="number" step="0.01" placeholder="Ex: 1.20"
-                  value={largura} onChange={(e) => setLargura(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:border-blue-600 focus:outline-none"
-                />
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" disabled={salvando}
+                  className="px-6 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow transition cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                >
+                  {salvando ? <Loader2 className="animate-spin" size={14} /> : 'Salvar Cotação'}
+                </button>
               </div>
+            </form>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Altura (Metros)</label>
-                <input 
-                  type="number" step="0.01" placeholder="Ex: 1.50"
-                  value={altura} onChange={(e) => setAltura(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:border-blue-600 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Quantidade</label>
-                <input 
-                  type="number" placeholder="1"
-                  value={quantidade} onChange={(e) => setQuantidade(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:border-blue-600 focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 pt-2">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Mão de Obra / Instalação (R$)</label>
-                <input 
-                  type="number" placeholder="0.00"
-                  value={maoDeObra} onChange={(e) => setMaoDeObra(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:border-blue-600 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Margem / Adicional (%)</label>
-                <input 
-                  type="number" placeholder="30"
-                  value={margemLucro} onChange={(e) => setMargemLucro(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:border-blue-600 focus:outline-none"
-                />
-              </div>
-            </div>
           </div>
         </div>
+      )}
 
-        {/* Resumo e Ações de Exportação */}
-        <div className="bg-slate-900 text-white p-6 rounded-xl shadow-lg space-y-6 flex flex-col justify-between">
-          <div className="space-y-4">
-            <h3 className="text-lg font-bold border-b border-slate-800 pb-3 flex items-center gap-2">
-              <DollarSign size={20} className="text-emerald-400" /> Resumo do Cálculo
-            </h3>
-
-            <div className="space-y-2 text-sm text-slate-300">
-              <div className="flex justify-between">
-                <span>Área Total:</span>
-                <span className="font-semibold text-white">{areaM2Total.toFixed(2)} m²</span>
-              </div>
-
-              <div className="flex justify-between">
-                <span>Custo do Vidro:</span>
-                <span className="font-semibold text-white">R$ {custoVidroTotal.toFixed(2)}</span>
-              </div>
-
-              <div className="flex justify-between">
-                <span>Mão de Obra:</span>
-                <span className="font-semibold text-white">R$ {valorMaoObra.toFixed(2)}</span>
-              </div>
-            </div>
-
-            <div className="border-t border-slate-800 pt-4">
-              <span className="text-xs text-slate-400 block mb-1">Valor Sugerido para o Cliente</span>
-              <div className="text-3xl font-extrabold text-emerald-400">
-                R$ {valorTotalOrcamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </div>
-            </div>
-          </div>
-
-          {/* Botões de Ação */}
-          <div className="space-y-3">
-            <button 
-              onClick={handleGerarPDF}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-white py-2.5 rounded-xl font-bold transition flex items-center justify-center gap-2 cursor-pointer border border-slate-700"
-            >
-              <FileText size={18} className="text-blue-400" /> Gerar PDF / Imprimir
-            </button>
-
-            <button 
-              onClick={handleEnviarWhatsApp}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-xl font-bold transition flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Send size={18} /> Enviar no WhatsApp
-            </button>
-
-            <button 
-              onClick={handleSalvarCotacao}
-              disabled={salvando}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              {salvando ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-              {salvando ? 'Salvando...' : 'Salvar no Banco'}
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
