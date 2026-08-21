@@ -17,7 +17,8 @@ export default function App() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const userSalvo = localStorage.getItem('vidracaria_user')
+    // Busca a sessão temporária da aba atual
+    const userSalvo = sessionStorage.getItem('vidracaria_user')
     if (userSalvo) {
       setSession(JSON.parse(userSalvo))
     }
@@ -25,6 +26,7 @@ export default function App() {
   }, [])
 
   const handleLogout = () => {
+    sessionStorage.removeItem('vidracaria_user')
     localStorage.removeItem('vidracaria_user')
     setSession(null)
   }
@@ -41,13 +43,11 @@ export default function App() {
     return <Login onLoginSuccess={(user) => setSession(user)} />
   }
 
-  // Definição de Permissões por Cargo
   const cargo = session.cargo || ''
   const isTotal = cargo === 'Gerente' || cargo === 'Suporte' || cargo === 'Dona' || cargo === 'Administrador'
   const isVendedor = cargo === 'Vendedor'
   const isOperador = cargo === 'Operador' || cargo === 'Atendimento' || cargo === 'Estoquista'
 
-  // Define a página inicial padrão de cada perfil
   const getRotaInicial = () => {
     if (isVendedor) return "/cotador"
     if (isOperador) return "/pedidos"
@@ -57,7 +57,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <div className="flex h-screen bg-slate-50 font-sans antialiased relative">
-        {/* Sidebar Nav */}
         <aside className="w-64 bg-slate-900 text-white flex flex-col border-r border-slate-800">
           <div className="p-6 border-b border-slate-800">
             <h2 className="text-xl font-bold text-blue-400 tracking-tight">Millenium Glass</h2>
@@ -65,33 +64,27 @@ export default function App() {
           </div>
           
           <nav className="flex-1 p-4 space-y-1">
-            {/* Dashboard: Apenas Gerente, Suporte, Dona e Administrador */}
             {isTotal && (
               <NavItem to="/" icon={<LayoutDashboard size={18} />} label="Dashboard" />
             )}
 
-            {/* Controle de Estoque */}
             {isTotal && (
               <NavItem to="/estoque" icon={<Package size={18} />} label="Controle de Estoque" />
             )}
 
-            {/* Cotador de Insumos */}
             {(isTotal || isVendedor) && (
               <NavItem to="/cotador" icon={<Calculator size={18} />} label="Cotador de Insumos" />
             )}
 
-            {/* Pedidos & Vendas */}
             {(isTotal || isOperador) && (
               <NavItem to="/pedidos" icon={<ShoppingBag size={18} />} label="Pedidos & Vendas" />
             )}
 
-            {/* Visitas Técnicas */}
             {(isTotal || isOperador) && (
               <NavItem to="/visitas" icon={<Calendar size={18} />} label="Visitas Técnicas" />
             )}
           </nav>
 
-          {/* Dados do Usuário Logado, Botão Sair & Marca Gv Dev Systems */}
           <div className="p-4 border-t border-slate-800 space-y-3">
             <div className="flex items-center gap-3 text-xs text-slate-300">
               <User size={16} className="text-blue-400" />
@@ -108,7 +101,6 @@ export default function App() {
               <LogOut size={16} /> Sair da Conta
             </button>
 
-            {/* Assinatura no Rodapé do Menu */}
             <div className="pt-2.5 border-t border-slate-800/60 text-center select-none">
               <span className="text-[10px] tracking-wider text-slate-500 font-mono">
                 Powered by <strong className="text-slate-300 font-bold">Gv Dev Systems</strong>
@@ -117,7 +109,6 @@ export default function App() {
           </div>
         </aside>
 
-        {/* Content Area */}
         <main className="flex-1 overflow-y-auto relative">
           <Routes>
             <Route 
@@ -143,7 +134,6 @@ export default function App() {
             <Route path="*" element={<Navigate to={getRotaInicial()} replace />} />
           </Routes>
 
-          {/* Marca d'água discreta e fixa no canto inferior direito */}
           <div className="fixed bottom-3 right-4 pointer-events-none select-none text-[11px] font-mono text-slate-500/60 font-semibold tracking-wider z-50 bg-slate-200/50 backdrop-blur-xs px-2.5 py-1 rounded-md border border-slate-300/40 shadow-xs">
             Gv Dev Systems
           </div>

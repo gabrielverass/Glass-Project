@@ -1,10 +1,11 @@
 import React, { useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import { Lock, User, Loader2, AlertCircle } from 'lucide-react'
+import { Lock, User, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react'
 
 export default function Login({ onLoginSuccess }) {
   const [usuarioInput, setUsuarioInput] = useState('')
   const [senhaInput, setSenhaInput] = useState('')
+  const [mostrarSenha, setMostrarSenha] = useState(false)
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState('')
 
@@ -39,7 +40,9 @@ export default function Login({ onLoginSuccess }) {
         cargo: data.cargo
       }
 
-      localStorage.setItem('vidracaria_user', JSON.stringify(userData))
+      // sessionStorage encerra a sessão automaticamente ao fechar o navegador/aba
+      sessionStorage.setItem('vidracaria_user', JSON.stringify(userData))
+      localStorage.removeItem('vidracaria_user') // Limpa resíduos antigos
       onLoginSuccess(userData)
     } catch (err) {
       setErro('Erro de conexão ao tentar fazer login.')
@@ -80,10 +83,26 @@ export default function Login({ onLoginSuccess }) {
             <div className="relative flex items-center">
               <Lock size={18} className="absolute left-3 text-slate-400" />
               <input 
-                type="password" required placeholder="••••••••"
-                value={senhaInput} onChange={(e) => setSenhaInput(e.target.value)}
-                className="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-600 focus:outline-none"
+                type={mostrarSenha ? "text" : "password"} 
+                required 
+                placeholder="••••••••"
+                value={senhaInput} 
+                onChange={(e) => setSenhaInput(e.target.value)}
+                className="w-full pl-10 pr-10 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-600 focus:outline-none"
               />
+              <button
+                type="button"
+                onMouseDown={() => setMostrarSenha(true)}
+                onMouseUp={() => setMostrarSenha(false)}
+                onMouseLeave={() => setMostrarSenha(false)}
+                onTouchStart={() => setMostrarSenha(true)}
+                onTouchEnd={() => setMostrarSenha(false)}
+                onClick={() => setMostrarSenha(!mostrarSenha)}
+                className="absolute right-3 text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                title="Clique ou segure para visualizar"
+              >
+                {mostrarSenha ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
             </div>
           </div>
 
@@ -95,7 +114,6 @@ export default function Login({ onLoginSuccess }) {
           </button>
         </form>
 
-        {/* Assinatura no Rodapé do Cartão de Login */}
         <div className="pt-4 border-t border-slate-100 text-center select-none">
           <span className="text-[11px] tracking-wider text-slate-400 font-mono">
             Powered by <strong className="text-slate-700 font-bold">Gv Dev Systems</strong>
@@ -103,7 +121,6 @@ export default function Login({ onLoginSuccess }) {
         </div>
       </div>
 
-      {/* Assinatura discreta no rodapé da tela escura */}
       <div className="absolute bottom-4 text-center select-none">
         <span className="text-[10px] tracking-widest text-slate-600 font-mono uppercase">
           Gv Dev Systems • Soluções Web
