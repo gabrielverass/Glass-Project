@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { 
-  DollarSign, ShoppingBag, TrendingUp, Clock, 
-  Calendar, FileText, Download, Printer, Filter, 
-  CheckCircle, Loader2, ArrowUpRight, BarChart3, PieChart
+  DollarSign, ShoppingBag, TrendingUp, 
+  Calendar, Download, Printer, Filter, 
+  CheckCircle, Loader2, BarChart3, PieChart, FileSpreadsheet
 } from 'lucide-react'
 
 export default function Dashboard() {
@@ -14,7 +14,6 @@ export default function Dashboard() {
   const [dataFim, setDataFim] = useState('')
   const [modalExportar, setModalExportar] = useState(false)
 
-  // 1. Carregar Pedidos do Banco
   const carregarPedidos = async () => {
     setLoading(true)
     try {
@@ -38,7 +37,6 @@ export default function Dashboard() {
     configurarDatasFiltro('este_mes')
   }, [])
 
-  // 2. Configurar Intervalos de Data Rápidos
   const configurarDatasFiltro = (tipo) => {
     setFiltroPeriodo(tipo)
     const hoje = new Date()
@@ -66,7 +64,6 @@ export default function Dashboard() {
     }
   }
 
-  // 3. Filtrar Pedidos por Data
   const pedidosFiltrados = pedidos.filter(p => {
     if (!dataInicio && !dataFim) return true
     const dataCriacao = new Date(p.created_at || p.data || new Date()).toISOString().split('T')[0]
@@ -75,7 +72,6 @@ export default function Dashboard() {
     return true
   })
 
-  // 4. Cálculos dos Indicadores Financeiros e Operacionais
   const totalFaturamento = pedidosFiltrados.reduce((acc, p) => acc + (parseFloat(p.valor_total) || 0), 0)
   const totalPedidos = pedidosFiltrados.length
   const ticketMedio = totalPedidos > 0 ? totalFaturamento / totalPedidos : 0
@@ -86,7 +82,6 @@ export default function Dashboard() {
 
   const taxaConclusao = totalPedidos > 0 ? ((pedidosConcluidos / totalPedidos) * 100).toFixed(0) : 0
 
-  // Distribuição por Canal de Venda
   const canais = pedidosFiltrados.reduce((acc, p) => {
     const canal = p.canal || 'WhatsApp'
     const val = parseFloat(p.valor_total) || 0
@@ -96,7 +91,6 @@ export default function Dashboard() {
     return acc
   }, {})
 
-  // Distribuição por Status de Produção
   const statusProducao = {
     'Fila de Demanda': pedidosFiltrados.filter(p => p.status_producao === 'Fila de Demanda' || p.status === 'Pendente').length,
     'Em Produção': pedidosFiltrados.filter(p => p.status_producao === 'Em Produção' || p.status === 'Em Produção').length,
@@ -104,38 +98,93 @@ export default function Dashboard() {
     'Instalado / Concluído': pedidosConcluidos
   }
 
-  // 5. Exportar Relatório em Excel (CSV)
-  const exportarCSV = () => {
+  // EXPORTAÇÃO EXCEL PROFISSIONAL FORMATADA (.XLS)
+  const exportarExcelFormatado = () => {
     if (pedidosFiltrados.length === 0) {
       alert('Não há pedidos no período selecionado.')
       return
     }
 
-    const colunas = ['ID', 'Cliente', 'Telefone', 'Servico', 'Valor Total (R$)', 'Status Pagamento', 'Status Producao', 'Canal', 'Data']
-    const linhas = pedidosFiltrados.map(p => [
-      p.id,
-      `"${(p.cliente || '').replace(/"/g, '""')}"`,
-      `"${p.telefone || '-'}"`,
-      `"${(p.servico || p.descricao || '').replace(/"/g, '""')}"`,
-      (parseFloat(p.valor_total) || 0).toFixed(2),
-      `"${p.status_pagamento || '-'}"`,
-      `"${p.status_producao || p.status || '-'}"`,
-      `"${p.canal || 'WhatsApp'}"`,
-      new Date(p.created_at || new Date()).toLocaleDateString('pt-BR')
-    ])
+    const formatBRL = (v) => (parseFloat(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [colunas.join(';'), ...linhas.map(e => e.join(';'))].join('\n')
-    const encodedUri = encodeURI(csvContent)
+    const tabelaHtml = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8">
+        <style>
+          table { border-collapse: collapse; font-family: Calibri, Segoe UI, sans-serif; font-size: 11pt; }
+          th { background-color: #0f172a; color: #ffffff; font-weight: bold; border: 1px solid #cbd5e1; padding: 10px 12px; text-align: left; }
+          td { border: 1px solid #cbd5e1; padding: 8px 10px; vertical-align: middle; }
+          .header-title { font-size: 14pt; font-weight: bold; color: #0284c7; }
+          .num { text-align: right; }
+          .center { text-align: center; }
+          .total-row { background-color: #f1f5f9; font-weight: bold; font-size: 11pt; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <tr>
+            <td colspan="9" class="header-title">MILLENIUM GLASS ESQUADRIAS - RELATÓRIO DE PEDIDOS</td>
+          </tr>
+          <tr>
+            <td colspan="9" style="color: #64748b; font-size: 10pt;">
+              Período: ${new Date(dataInicio).toLocaleDateString('pt-BR')} a ${new Date(dataFim).toLocaleDateString('pt-BR')} | Total de Registros: ${pedidosFiltrados.length} obras
+            </td>
+          </tr>
+          <tr><td colspan="9"></td></tr>
+          <thead>
+            <tr>
+              <th style="width: 90px; text-align: center;">Código</th>
+              <th style="width: 240px;">Cliente</th>
+              <th style="width: 140px;">Telefone</th>
+              <th style="width: 320px;">Serviço / Projeto</th>
+              <th style="width: 120px;">Canal</th>
+              <th style="width: 170px;">Status Produção</th>
+              <th style="width: 150px;">Pagamento</th>
+              <th style="width: 140px; text-align: right;">Valor Total</th>
+              <th style="width: 110px; text-align: center;">Data</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${pedidosFiltrados.map(p => `
+              <tr>
+                <td class="center">#PED-${p.id}</td>
+                <td><strong>${p.cliente || '-'}</strong></td>
+                <td>${p.telefone || '-'}</td>
+                <td>${p.servico || p.descricao || '-'}</td>
+                <td>${p.canal || 'WhatsApp'}</td>
+                <td>${p.status_producao || p.status || '-'}</td>
+                <td>${p.status_pagamento || '-'}</td>
+                <td class="num">R$ ${formatBRL(p.valor_total)}</td>
+                <td class="center">${new Date(p.created_at || new Date()).toLocaleDateString('pt-BR')}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+          <tfoot>
+            <tr class="total-row">
+              <td colspan="7" style="text-align: right; font-weight: bold;">FATURAMENTO TOTAL:</td>
+              <td class="num" style="font-weight: bold; color: #0284c7;">R$ ${formatBRL(totalFaturamento)}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </body>
+      </html>
+    `
+
+    const blob = new Blob(['\ufeff', tabelaHtml], { type: 'application/vnd.ms-excel;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
-    link.setAttribute('href', encodedUri)
-    link.setAttribute('download', `Relatorio_Pedidos_${dataInicio}_a_${dataFim}.csv`)
+    link.href = url
+    link.download = `Relatorio_Pedidos_${dataInicio}_a_${dataFim}.xls`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+    URL.revokeObjectURL(url)
     setModalExportar(false)
   }
 
-  // 6. Gerar Relatório Executivo em PDF
+  // EXPORTAÇÃO PDF GERENCIAL
   const imprimirRelatorioPDF = () => {
     const printWindow = window.open('', '_blank')
     const formatBRL = (v) => (parseFloat(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
@@ -248,7 +297,7 @@ export default function Dashboard() {
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
       
-      {/* Topo do Dashboard */}
+      {/* Cabeçalho */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Dashboard & Relatórios</h1>
@@ -265,7 +314,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Barra de Filtro de Período */}
+      {/* Filtros de Período */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5 mr-2">
@@ -292,7 +341,6 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Seleção de Datas Manuais */}
         <div className="flex items-center gap-2 text-xs">
           <input 
             type="date" value={dataInicio} onChange={e => { setDataInicio(e.target.value); setFiltroPeriodo('personalizado') }}
@@ -306,7 +354,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Cards de Métricas Principais */}
+      {/* Cards de Métricas */}
       {loading ? (
         <div className="flex items-center justify-center py-20 text-slate-400 text-sm gap-2">
           <Loader2 className="animate-spin" size={20} /> Carregando métricas do dashboard...
@@ -315,7 +363,6 @@ export default function Dashboard() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             
-            {/* Card Faturamento */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
               <div className="flex justify-between items-center text-slate-500">
                 <span className="text-xs font-semibold uppercase tracking-wider">Faturamento Total</span>
@@ -331,7 +378,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Card Pedidos */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
               <div className="flex justify-between items-center text-slate-500">
                 <span className="text-xs font-semibold uppercase tracking-wider">Obras / Pedidos</span>
@@ -345,7 +391,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Card Ticket Médio */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
               <div className="flex justify-between items-center text-slate-500">
                 <span className="text-xs font-semibold uppercase tracking-wider">Ticket Médio</span>
@@ -361,7 +406,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Card Taxa de Conclusão */}
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
               <div className="flex justify-between items-center text-slate-500">
                 <span className="text-xs font-semibold uppercase tracking-wider">Taxa de Conclusão</span>
@@ -377,10 +421,9 @@ export default function Dashboard() {
 
           </div>
 
-          {/* Gráficos / Distribuições */}
+          {/* Gráficos e Distribuições */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
-            {/* Tabela de Vendas por Canal de Mídia */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
@@ -417,7 +460,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Pipeline de Produção & Status de Demanda */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
@@ -452,7 +494,7 @@ export default function Dashboard() {
 
           </div>
 
-          {/* Tabela Resumida dos Últimos Pedidos */}
+          {/* Tabela Resumo */}
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-800">Levantamento Recente de Pedidos</h3>
@@ -472,7 +514,7 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {pedidosFiltrados.slice(0, 5).map(p => (
+                  {pedidosFiltrados.slice(0, 6).map(p => (
                     <tr key={p.id} className="hover:bg-slate-50">
                       <td className="py-3 font-semibold text-slate-800">{p.cliente}</td>
                       <td className="py-3 text-slate-500 max-w-xs truncate">{p.servico || p.descricao || '-'}</td>
@@ -499,7 +541,7 @@ export default function Dashboard() {
         </>
       )}
 
-      {/* Modal de Opções de Exportação */}
+      {/* Modal de Exportação */}
       {modalExportar && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5 animate-in fade-in">
@@ -516,11 +558,11 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-2 gap-3">
               <button 
-                onClick={exportarCSV}
+                onClick={exportarExcelFormatado}
                 className="flex flex-col items-center justify-center gap-2 p-4 border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/40 rounded-xl transition cursor-pointer text-slate-700 font-semibold text-xs"
               >
-                <Download size={24} className="text-emerald-600" />
-                <span>Gerar Excel (CSV)</span>
+                <FileSpreadsheet size={24} className="text-emerald-600" />
+                <span>Planilha Excel (.xls)</span>
               </button>
 
               <button 
