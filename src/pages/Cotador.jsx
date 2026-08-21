@@ -49,17 +49,17 @@ export default function Cotador() {
   const removeAluminio = (id) => setAluminios(aluminios.filter(a => a.id !== id))
   const updateAluminio = (id, campo, val) => setAluminios(aluminios.map(a => a.id === id ? { ...a, [campo]: val } : a))
 
-  // Agrupamentos e Menor Custo
+  // Agrupamentos e Menor Custo Ignorando Itens Zerados
   const calcularMelhorCombinacao = () => {
     const totaisVidros = vidros.reduce((acc, item) => {
-      const dist = item.distribuidora.trim()
+      const dist = item.distribuidora?.trim()
       const val = parseFloat(item.valor) || 0
       if (dist && val > 0) acc[dist] = (acc[dist] || 0) + val
       return acc
     }, {})
 
     const totaisAluminios = aluminios.reduce((acc, item) => {
-      const dist = item.distribuidora.trim()
+      const dist = item.distribuidora?.trim()
       const val = parseFloat(item.valor) || 0
       if (dist && val > 0) acc[dist] = (acc[dist] || 0) + val
       return acc
@@ -102,8 +102,8 @@ export default function Cotador() {
     setDataCotacao(cot.data_cotacao || '')
     setStatus(cot.status || 'Aberta')
     setObservacoes(cot.observacoes || '')
-    setVidros(cot.vidros || [{ id: 1, distribuidora: '', descricao: '', valor: '' }])
-    setAluminios(cot.aluminios || [{ id: 1, distribuidora: '', descricao: '', valor: '' }])
+    setVidros(cot.vidros?.length ? cot.vidros : [{ id: 1, distribuidora: '', descricao: '', valor: '' }])
+    setAluminios(cot.aluminios?.length ? cot.aluminios : [{ id: 1, distribuidora: '', descricao: '', valor: '' }])
     setModalAberta(true)
   }
 
@@ -115,12 +115,17 @@ export default function Cotador() {
     }
 
     setSalvando(true)
+
+    // Salva apenas linhas preenchidas com valor > 0
+    const vidrosFiltrados = vidros.filter(v => v.distribuidora?.trim() && parseFloat(v.valor) > 0)
+    const aluminiosFiltrados = aluminios.filter(a => a.distribuidora?.trim() && parseFloat(a.valor) > 0)
+
     const payload = {
       cliente_obra: clienteObra,
       data_cotacao: dataCotacao,
       status: status,
-      vidros: vidros,
-      aluminios: aluminios,
+      vidros: vidrosFiltrados.length ? vidrosFiltrados : vidros,
+      aluminios: aluminiosFiltrados.length ? aluminiosFiltrados : aluminios,
       melhor_combinacao: melhores,
       observacoes: observacoes,
       valor_total: melhores.totalGeral
@@ -148,11 +153,14 @@ export default function Cotador() {
     }
   }
 
-  // GERADOR DE PDF COMPARATIVO
+  // GERADOR DE PDF COMPARATIVO COM TIPOGRAFIA REFINADA
   const gerarPdfComparativo = (c) => {
-    // 1. Agrupar Vidros por Distribuidora
-    const vidrosAgrupados = (c.vidros || []).reduce((acc, item) => {
-      const dist = item.distribuidora?.trim() || 'Outros'
+    // 1. Filtrar e Agrupar apenas itens válidos (distribuidora preenchida e valor > 0)
+    const vidrosValidos = (c.vidros || []).filter(it => it.distribuidora?.trim() && parseFloat(it.valor) > 0)
+    const aluminiosValidos = (c.aluminios || []).filter(it => it.distribuidora?.trim() && parseFloat(it.valor) > 0)
+
+    const vidrosAgrupados = vidrosValidos.reduce((acc, item) => {
+      const dist = item.distribuidora.trim()
       const val = parseFloat(item.valor) || 0
       if (!acc[dist]) acc[dist] = { itens: [], subtotal: 0 }
       acc[dist].itens.push(item)
@@ -160,9 +168,8 @@ export default function Cotador() {
       return acc
     }, {})
 
-    // 2. Agrupar Alumínios/Acessórios por Distribuidora
-    const aluminiosAgrupados = (c.aluminios || []).reduce((acc, item) => {
-      const dist = item.distribuidora?.trim() || 'Outros'
+    const aluminiosAgrupados = aluminiosValidos.reduce((acc, item) => {
+      const dist = item.distribuidora.trim()
       const val = parseFloat(item.valor) || 0
       if (!acc[dist]) acc[dist] = { itens: [], subtotal: 0 }
       acc[dist].itens.push(item)
@@ -170,7 +177,7 @@ export default function Cotador() {
       return acc
     }, {})
 
-    // 3. Gerar Matriz de Todas as Combinações
+    // 2. Gerar Combinações
     const combinacoes = []
     const distVidros = Object.keys(vidrosAgrupados)
     const distAluminios = Object.keys(aluminiosAgrupados)
@@ -188,9 +195,28 @@ export default function Cotador() {
           })
         })
       })
+    } else if (distVidros.length > 0) {
+      distVidros.forEach(vDist => {
+        const vSub = vidrosAgrupados[vDist].subtotal
+        combinacoes.push({
+          nome: vDist,
+          vidro: vSub,
+          aluminio: 0,
+          total: vSub
+        })
+      })
+    } else if (distAluminios.length > 0) {
+      distAluminios.forEach(aDist => {
+        const aSub = aluminiosAgrupados[aDist].subtotal
+        combinacoes.push({
+          nome: aDist,
+          vidro: 0,
+          aluminio: aSub,
+          total: aSub
+        })
+      })
     }
 
-    // Identificar Menor Custo
     let melhorOpcao = null
     if (combinacoes.length > 0) {
       melhorOpcao = combinacoes.reduce((min, atual) => atual.total < min.total ? atual : min, combinacoes[0])
@@ -198,7 +224,6 @@ export default function Cotador() {
 
     const dataFormatada = c.data_cotacao ? new Date(c.data_cotacao).toLocaleDateString('pt-BR') : '-'
 
-    // Janela de Impressão Formatada
     const printWindow = window.open('', '_blank')
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -206,26 +231,66 @@ export default function Cotador() {
       <head>
         <title>Orçamento Comparativo - ${c.cliente_obra}</title>
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #1e293b; padding: 40px; margin: 0; }
-          .header { border-bottom: 2px solid #0284c7; padding-bottom: 15px; margin-bottom: 25px; }
-          .title { font-size: 18px; font-weight: 800; color: #0f172a; text-transform: uppercase; margin: 0 0 8px 0; letter-spacing: 0.5px; }
-          .meta { font-size: 13px; color: #475569; margin: 2px 0; }
-          .section-title { font-size: 13px; font-weight: 800; color: #0369a1; text-transform: uppercase; margin: 20px 0 10px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
-          .dist-block { margin-bottom: 12px; }
-          .dist-name { font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
-          .item-row { display: flex; justify-content: space-between; font-size: 12px; color: #334155; padding: 2px 0; }
-          .subtotal-row { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: #0f172a; border-top: 1px dashed #cbd5e1; margin-top: 4px; padding-top: 3px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
-          th { background: #f1f5f9; color: #334155; font-weight: 700; text-align: left; padding: 8px 10px; border: 1px solid #cbd5e1; }
-          td { padding: 7px 10px; border: 1px solid #cbd5e1; color: #1e293b; }
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+          * { box-sizing: border-box; }
+          body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            color: #1e293b; 
+            background: #ffffff;
+            padding: 40px 48px; 
+            margin: 0; 
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .header { border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px; }
+          .title { font-size: 16px; font-weight: 800; color: #0f172a; text-transform: uppercase; margin: 0 0 6px 0; letter-spacing: 0.3px; }
+          .meta { font-size: 12px; color: #334155; margin: 2px 0; }
+          
+          .section-title { 
+            font-size: 11px; 
+            font-weight: 800; 
+            color: #0284c7; 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px;
+            margin: 18px 0 8px 0; 
+            border-bottom: 1px solid #e2e8f0; 
+            padding-bottom: 3px; 
+          }
+          
+          .dist-block { margin-bottom: 10px; }
+          .dist-name { font-size: 12px; font-weight: 700; color: #0f172a; margin-bottom: 3px; }
+          .item-row { display: flex; justify-content: space-between; font-size: 11px; color: #475569; padding: 1.5px 0; }
+          .subtotal-row { 
+            display: flex; 
+            justify-content: space-between; 
+            font-size: 11px; 
+            font-weight: 700; 
+            color: #0f172a; 
+            border-top: 1px dotted #cbd5e1; 
+            margin-top: 3px; 
+            padding-top: 3px; 
+          }
+          
+          table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; }
+          th { background: #f8fafc; color: #334155; font-weight: 700; text-align: left; padding: 6px 10px; border: 1px solid #cbd5e1; }
+          td { padding: 6px 10px; border: 1px solid #cbd5e1; color: #1e293b; }
           .text-right { text-align: right; }
-          .highlight { background: #f0fdf4; font-weight: 700; }
-          .footer-box { margin-top: 25px; padding: 14px; background: #f8fafc; border: 1px solid #94a3b8; border-radius: 6px; font-size: 13px; }
-          .best-choice { font-weight: 800; color: #15803d; }
-          .watermark { margin-top: 40px; text-align: center; font-size: 10px; color: #94a3b8; font-family: monospace; }
+          .highlight { background: #f0fdf4 !important; font-weight: 700; }
+          
+          .footer-box { 
+            margin-top: 18px; 
+            padding: 10px 14px; 
+            background: #ffffff; 
+            border: 1px solid #cbd5e1; 
+            border-radius: 6px; 
+            font-size: 12px; 
+          }
+          .best-choice { font-weight: 700; color: #16a34a; }
+          .watermark { margin-top: 35px; text-align: center; font-size: 10px; color: #94a3b8; font-family: monospace; }
+          
           @media print {
             body { padding: 20px; }
-            @page { margin: 1.5cm; }
+            @page { margin: 1.2cm; size: auto; }
           }
         </style>
       </head>
@@ -236,69 +301,75 @@ export default function Cotador() {
           <div class="meta"><strong>Data:</strong> ${dataFormatada}</div>
         </div>
 
-        <div class="section-title">COTAÇÃO DE VIDROS</div>
-        ${Object.entries(vidrosAgrupados).map(([dist, dados]) => `
-          <div class="dist-block">
-            <div class="dist-name">${dist}</div>
-            ${dados.itens.map(it => `
-              <div class="item-row">
-                <span>${it.descricao || 'Item de vidro'}</span>
-                <span>R$ ${parseFloat(it.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+        ${Object.keys(vidrosAgrupados).length > 0 ? `
+          <div class="section-title">COTAÇÃO DE VIDROS</div>
+          ${Object.entries(vidrosAgrupados).map(([dist, dados]) => `
+            <div class="dist-block">
+              <div class="dist-name">${dist}</div>
+              ${dados.itens.map(it => `
+                <div class="item-row">
+                  <span>${it.descricao || 'Vidro'}</span>
+                  <span>R$ ${parseFloat(it.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+              `).join('')}
+              <div class="subtotal-row">
+                <span>Subtotal</span>
+                <span>R$ ${dados.subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
-            `).join('')}
-            <div class="subtotal-row">
-              <span>Subtotal</span>
-              <span>R$ ${dados.subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
             </div>
-          </div>
-        `).join('')}
+          `).join('')}
+        ` : ''}
 
-        <div class="section-title">COTAÇÃO DE BARRAS E ACESSÓRIOS</div>
-        ${Object.entries(aluminiosAgrupados).map(([dist, dados]) => `
-          <div class="dist-block">
-            <div class="dist-name">${dist}</div>
-            ${dados.itens.map(it => `
-              <div class="item-row">
-                <span>${it.descricao || 'Item de perfil/acessório'}</span>
-                <span>R$ ${parseFloat(it.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+        ${Object.keys(aluminiosAgrupados).length > 0 ? `
+          <div class="section-title">COTAÇÃO DE BARRAS E ACESSÓRIOS</div>
+          ${Object.entries(aluminiosAgrupados).map(([dist, dados]) => `
+            <div class="dist-block">
+              <div class="dist-name">${dist}</div>
+              ${dados.itens.map(it => `
+                <div class="item-row">
+                  <span>${it.descricao || 'Item de perfil/acessório'}</span>
+                  <span>R$ ${parseFloat(it.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+              `).join('')}
+              <div class="subtotal-row">
+                <span>Subtotal</span>
+                <span>R$ ${dados.subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
               </div>
-            `).join('')}
-            <div class="subtotal-row">
-              <span>Subtotal</span>
-              <span>R$ ${dados.subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
             </div>
-          </div>
-        `).join('')}
+          `).join('')}
+        ` : ''}
 
-        <div class="section-title">OPÇÕES COMBINADAS</div>
-        <table>
-          <thead>
-            <tr>
-              <th>Combinação</th>
-              <th class="text-right">Vidros</th>
-              <th class="text-right">Acessórios</th>
-              <th class="text-right">Total final</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${combinacoes.map(comb => {
-              const isBest = melhorOpcao && comb.nome === melhorOpcao.nome
-              return `
-                <tr class="${isBest ? 'highlight' : ''}">
-                  <td>${comb.nome} ${isBest ? '★' : ''}</td>
-                  <td class="text-right">R$ ${comb.vidro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                  <td class="text-right">R$ ${comb.aluminio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                  <td class="text-right"><strong>R$ ${comb.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></td>
-                </tr>
-              `
-            }).join('')}
-          </tbody>
-        </table>
+        ${combinacoes.length > 0 ? `
+          <div class="section-title">OPÇÕES COMBINADAS</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Combinação</th>
+                <th class="text-right">Vidros</th>
+                <th class="text-right">Acessórios</th>
+                <th class="text-right">Total final</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${combinacoes.map(comb => {
+                const isBest = melhorOpcao && comb.nome === melhorOpcao.nome
+                return `
+                  <tr class="${isBest ? 'highlight' : ''}">
+                    <td>${comb.nome} ${isBest ? '★' : ''}</td>
+                    <td class="text-right">R$ ${comb.vidro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td class="text-right">R$ ${comb.aluminio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td class="text-right"><strong>R$ ${comb.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></td>
+                  </tr>
+                `
+              }).join('')}
+            </tbody>
+          </table>
 
-        ${melhorOpcao ? `
-          <div class="footer-box">
-            <span class="best-choice">Melhor custo-benefício:</span> ${melhorOpcao.nome} — <strong>R$ ${melhorOpcao.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
-          </div>
+          ${melhorOpcao ? `
+            <div class="footer-box">
+              <span class="best-choice">Melhor custo-benefício:</span> ${melhorOpcao.nome} — <strong>R$ ${melhorOpcao.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong>
+            </div>
+          ` : ''}
         ` : ''}
 
         ${c.observacoes ? `
@@ -413,11 +484,11 @@ export default function Cotador() {
                 <div className="grid grid-cols-2 gap-3 py-3 border-y border-slate-100 text-xs">
                   <div>
                     <span className="text-slate-400 font-medium block mb-1">VIDROS</span>
-                    {c.vidros && c.vidros.length > 0 ? (
-                      c.vidros.map((v, idx) => (
+                    {c.vidros && c.vidros.filter(v => v.distribuidora && parseFloat(v.valor) > 0).length > 0 ? (
+                      c.vidros.filter(v => v.distribuidora && parseFloat(v.valor) > 0).map((v, idx) => (
                         <div key={idx} className="flex justify-between py-0.5 text-slate-700 font-medium">
-                          <span className="truncate pr-1">{v.distribuidora || '-'}</span>
-                          <span className="font-bold">R$ {parseFloat(v.valor || 0).toFixed(2)}</span>
+                          <span className="truncate pr-1">{v.distribuidora}</span>
+                          <span className="font-bold">R$ {parseFloat(v.valor).toFixed(2)}</span>
                         </div>
                       ))
                     ) : <span className="text-slate-400 italic">Sem itens</span>}
@@ -425,11 +496,11 @@ export default function Cotador() {
 
                   <div>
                     <span className="text-slate-400 font-medium block mb-1">ACESSÓRIOS / ALUMÍNIO</span>
-                    {c.aluminios && c.aluminios.length > 0 ? (
-                      c.aluminios.map((a, idx) => (
+                    {c.aluminios && c.aluminios.filter(a => a.distribuidora && parseFloat(a.valor) > 0).length > 0 ? (
+                      c.aluminios.filter(a => a.distribuidora && parseFloat(a.valor) > 0).map((a, idx) => (
                         <div key={idx} className="flex justify-between py-0.5 text-slate-700 font-medium">
-                          <span className="truncate pr-1">{a.distribuidora || '-'}</span>
-                          <span className="font-bold">R$ {parseFloat(a.valor || 0).toFixed(2)}</span>
+                          <span className="truncate pr-1">{a.distribuidora}</span>
+                          <span className="font-bold">R$ {parseFloat(a.valor).toFixed(2)}</span>
                         </div>
                       ))
                     ) : <span className="text-slate-400 italic">Sem itens</span>}
@@ -454,7 +525,6 @@ export default function Cotador() {
                   </p>
                 )}
 
-                {/* Botões de Ação */}
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                   <div className="flex items-center gap-2">
                     <button 
