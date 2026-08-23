@@ -19,6 +19,7 @@ export default function Cotador() {
   const [observacoes, setObservacoes] = useState('')
   const [vidros, setVidros] = useState([{ id: 1, distribuidora: '', descricao: '', valor: '' }])
   const [aluminios, setAluminios] = useState([{ id: 1, distribuidora: '', descricao: '', valor: '' }])
+  const [acessorios, setAcessorios] = useState([{ id: 1, distribuidora: '', descricao: '', valor: '' }])
   const [salvando, setSalvando] = useState(false)
 
   const carregarCotacoes = async () => {
@@ -41,6 +42,7 @@ export default function Cotador() {
     carregarCotacoes()
   }, [])
 
+  // Manipuladores de Linhas
   const addVidro = () => setVidros([...vidros, { id: Date.now(), distribuidora: '', descricao: '', valor: '' }])
   const removeVidro = (id) => setVidros(vidros.filter(v => v.id !== id))
   const updateVidro = (id, campo, val) => setVidros(vidros.map(v => v.id === id ? { ...v, [campo]: val } : v))
@@ -49,38 +51,39 @@ export default function Cotador() {
   const removeAluminio = (id) => setAluminios(aluminios.filter(a => a.id !== id))
   const updateAluminio = (id, campo, val) => setAluminios(aluminios.map(a => a.id === id ? { ...a, [campo]: val } : a))
 
-  // Agrupamentos e Menor Custo Ignorando Itens Zerados
+  const addAcessorio = () => setAcessorios([...acessorios, { id: Date.now(), distribuidora: '', descricao: '', valor: '' }])
+  const removeAcessorio = (id) => setAcessorios(acessorios.filter(a => a.id !== id))
+  const updateAcessorio = (id, campo, val) => setAcessorios(acessorios.map(a => a.id === id ? { ...a, [campo]: val } : a))
+
+  // Cálculo da Melhor Combinação com os 3 Pilares
   const calcularMelhorCombinacao = () => {
-    const totaisVidros = vidros.reduce((acc, item) => {
+    const agrupar = (lista) => lista.reduce((acc, item) => {
       const dist = item.distribuidora?.trim()
       const val = parseFloat(item.valor) || 0
       if (dist && val > 0) acc[dist] = (acc[dist] || 0) + val
       return acc
     }, {})
 
-    const totaisAluminios = aluminios.reduce((acc, item) => {
-      const dist = item.distribuidora?.trim()
-      const val = parseFloat(item.valor) || 0
-      if (dist && val > 0) acc[dist] = (acc[dist] || 0) + val
-      return acc
-    }, {})
+    const totaisVidros = agrupar(vidros)
+    const totaisAluminios = agrupar(aluminios)
+    const totaisAcessorios = agrupar(acessorios)
 
-    let melhorVidro = { distribuidora: '-', valor: 0 }
-    Object.entries(totaisVidros).forEach(([dist, val]) => {
-      if (melhorVidro.valor === 0 || val < melhorVidro.valor) {
-        melhorVidro = { distribuidora: dist, valor: val }
-      }
-    })
+    const obterMelhor = (totais) => {
+      let melhor = { distribuidora: '-', valor: 0 }
+      Object.entries(totais).forEach(([dist, val]) => {
+        if (melhor.valor === 0 || val < melhor.valor) {
+          melhor = { distribuidora: dist, valor: val }
+        }
+      })
+      return melhor
+    }
 
-    let melhorAluminio = { distribuidora: '-', valor: 0 }
-    Object.entries(totaisAluminios).forEach(([dist, val]) => {
-      if (melhorAluminio.valor === 0 || val < melhorAluminio.valor) {
-        melhorAluminio = { distribuidora: dist, valor: val }
-      }
-    })
+    const melhorVidro = obterMelhor(totaisVidros)
+    const melhorAluminio = obterMelhor(totaisAluminios)
+    const melhorAcessorio = obterMelhor(totaisAcessorios)
 
-    const totalGeral = (melhorVidro.valor || 0) + (melhorAluminio.valor || 0)
-    return { melhorVidro, melhorAluminio, totalGeral, totaisVidros, totaisAluminios }
+    const totalGeral = (melhorVidro.valor || 0) + (melhorAluminio.valor || 0) + (melhorAcessorio.valor || 0)
+    return { melhorVidro, melhorAluminio, melhorAcessorio, totalGeral, totaisVidros, totaisAluminios, totaisAcessorios }
   }
 
   const melhores = calcularMelhorCombinacao()
@@ -93,6 +96,7 @@ export default function Cotador() {
     setObservacoes('')
     setVidros([{ id: 1, distribuidora: '', descricao: '', valor: '' }])
     setAluminios([{ id: 1, distribuidora: '', descricao: '', valor: '' }])
+    setAcessorios([{ id: 1, distribuidora: '', descricao: '', valor: '' }])
     setModalAberta(true)
   }
 
@@ -104,6 +108,7 @@ export default function Cotador() {
     setObservacoes(cot.observacoes || '')
     setVidros(cot.vidros?.length ? cot.vidros : [{ id: 1, distribuidora: '', descricao: '', valor: '' }])
     setAluminios(cot.aluminios?.length ? cot.aluminios : [{ id: 1, distribuidora: '', descricao: '', valor: '' }])
+    setAcessorios(cot.acessorios?.length ? cot.acessorios : [{ id: 1, distribuidora: '', descricao: '', valor: '' }])
     setModalAberta(true)
   }
 
@@ -115,10 +120,9 @@ export default function Cotador() {
     }
 
     setSalvando(true)
-
-    // Salva apenas linhas preenchidas com valor > 0
     const vidrosFiltrados = vidros.filter(v => v.distribuidora?.trim() && parseFloat(v.valor) > 0)
     const aluminiosFiltrados = aluminios.filter(a => a.distribuidora?.trim() && parseFloat(a.valor) > 0)
+    const acessoriosFiltrados = acessorios.filter(a => a.distribuidora?.trim() && parseFloat(a.valor) > 0)
 
     const payload = {
       cliente_obra: clienteObra,
@@ -126,6 +130,7 @@ export default function Cotador() {
       status: status,
       vidros: vidrosFiltrados.length ? vidrosFiltrados : vidros,
       aluminios: aluminiosFiltrados.length ? aluminiosFiltrados : aluminios,
+      acessorios: acessoriosFiltrados.length ? acessoriosFiltrados : acessorios,
       melhor_combinacao: melhores,
       observacoes: observacoes,
       valor_total: melhores.totalGeral
@@ -153,69 +158,52 @@ export default function Cotador() {
     }
   }
 
-  // GERADOR DE PDF COMPARATIVO COM TIPOGRAFIA REFINADA
+  // GERADOR DE PDF COMPARATIVO COM 3 SEÇÕES
   const gerarPdfComparativo = (c) => {
-    // 1. Filtrar e Agrupar apenas itens válidos (distribuidora preenchida e valor > 0)
-    const vidrosValidos = (c.vidros || []).filter(it => it.distribuidora?.trim() && parseFloat(it.valor) > 0)
-    const aluminiosValidos = (c.aluminios || []).filter(it => it.distribuidora?.trim() && parseFloat(it.valor) > 0)
+    const agrupar = (lista) => (lista || [])
+      .filter(it => it.distribuidora?.trim() && parseFloat(it.valor) > 0)
+      .reduce((acc, item) => {
+        const dist = item.distribuidora.trim()
+        const val = parseFloat(item.valor) || 0
+        if (!acc[dist]) acc[dist] = { itens: [], subtotal: 0 }
+        acc[dist].itens.push(item)
+        acc[dist].subtotal += val
+        return acc
+      }, {})
 
-    const vidrosAgrupados = vidrosValidos.reduce((acc, item) => {
-      const dist = item.distribuidora.trim()
-      const val = parseFloat(item.valor) || 0
-      if (!acc[dist]) acc[dist] = { itens: [], subtotal: 0 }
-      acc[dist].itens.push(item)
-      acc[dist].subtotal += val
-      return acc
-    }, {})
+    const vidrosAgrupados = agrupar(c.vidros)
+    const aluminiosAgrupados = agrupar(c.aluminios)
+    const acessoriosAgrupados = agrupar(c.acessorios)
 
-    const aluminiosAgrupados = aluminiosValidos.reduce((acc, item) => {
-      const dist = item.distribuidora.trim()
-      const val = parseFloat(item.valor) || 0
-      if (!acc[dist]) acc[dist] = { itens: [], subtotal: 0 }
-      acc[dist].itens.push(item)
-      acc[dist].subtotal += val
-      return acc
-    }, {})
+    const distV = Object.keys(vidrosAgrupados)
+    const distAl = Object.keys(aluminiosAgrupados)
+    const distAc = Object.keys(acessoriosAgrupados)
 
-    // 2. Gerar Combinações
+    const listaV = distV.length ? distV : [null]
+    const listaAl = distAl.length ? distAl : [null]
+    const listaAc = distAc.length ? distAc : [null]
+
     const combinacoes = []
-    const distVidros = Object.keys(vidrosAgrupados)
-    const distAluminios = Object.keys(aluminiosAgrupados)
 
-    if (distVidros.length > 0 && distAluminios.length > 0) {
-      distVidros.forEach(vDist => {
-        distAluminios.forEach(aDist => {
-          const vSub = vidrosAgrupados[vDist].subtotal
-          const aSub = aluminiosAgrupados[aDist].subtotal
+    listaV.forEach(v => {
+      listaAl.forEach(al => {
+        listaAc.forEach(ac => {
+          if (!v && !al && !ac) return
+          const subV = v ? vidrosAgrupados[v].subtotal : 0
+          const subAl = al ? aluminiosAgrupados[al].subtotal : 0
+          const subAc = ac ? acessoriosAgrupados[ac].subtotal : 0
+          const partes = [v, al, ac].filter(Boolean)
+
           combinacoes.push({
-            nome: `${vDist} + ${aDist}`,
-            vidro: vSub,
-            aluminio: aSub,
-            total: vSub + aSub
+            nome: partes.join(' + '),
+            vidro: subV,
+            aluminio: subAl,
+            acessorio: subAc,
+            total: subV + subAl + subAc
           })
         })
       })
-    } else if (distVidros.length > 0) {
-      distVidros.forEach(vDist => {
-        const vSub = vidrosAgrupados[vDist].subtotal
-        combinacoes.push({
-          nome: vDist,
-          vidro: vSub,
-          aluminio: 0,
-          total: vSub
-        })
-      })
-    } else if (distAluminios.length > 0) {
-      distAluminios.forEach(aDist => {
-        const aSub = aluminiosAgrupados[aDist].subtotal
-        combinacoes.push({
-          nome: aDist,
-          vidro: 0,
-          aluminio: aSub,
-          total: aSub
-        })
-      })
-    }
+    })
 
     let melhorOpcao = null
     if (combinacoes.length > 0) {
@@ -234,64 +222,54 @@ export default function Cotador() {
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
           * { box-sizing: border-box; }
           body { 
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            font-family: 'Inter', sans-serif; 
             color: #1e293b; 
-            background: #ffffff;
-            padding: 40px 48px; 
+            padding: 35px 45px; 
             margin: 0; 
             -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
           }
-          .header { border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px; }
-          .title { font-size: 16px; font-weight: 800; color: #0f172a; text-transform: uppercase; margin: 0 0 6px 0; letter-spacing: 0.3px; }
-          .meta { font-size: 12px; color: #334155; margin: 2px 0; }
-          
+          .header { border-bottom: 2px solid #0284c7; padding-bottom: 10px; margin-bottom: 16px; }
+          .title { font-size: 15px; font-weight: 800; color: #0f172a; text-transform: uppercase; margin: 0 0 4px 0; }
+          .meta { font-size: 11px; color: #334155; margin: 2px 0; }
           .section-title { 
             font-size: 11px; 
             font-weight: 800; 
             color: #0284c7; 
             text-transform: uppercase; 
             letter-spacing: 0.5px;
-            margin: 18px 0 8px 0; 
+            margin: 14px 0 6px 0; 
             border-bottom: 1px solid #e2e8f0; 
-            padding-bottom: 3px; 
+            padding-bottom: 2px; 
           }
-          
-          .dist-block { margin-bottom: 10px; }
-          .dist-name { font-size: 12px; font-weight: 700; color: #0f172a; margin-bottom: 3px; }
-          .item-row { display: flex; justify-content: space-between; font-size: 11px; color: #475569; padding: 1.5px 0; }
+          .dist-block { margin-bottom: 8px; }
+          .dist-name { font-size: 11px; font-weight: 700; color: #0f172a; margin-bottom: 2px; }
+          .item-row { display: flex; justify-content: space-between; font-size: 10.5px; color: #475569; padding: 1px 0; }
           .subtotal-row { 
             display: flex; 
             justify-content: space-between; 
-            font-size: 11px; 
+            font-size: 10.5px; 
             font-weight: 700; 
             color: #0f172a; 
             border-top: 1px dotted #cbd5e1; 
-            margin-top: 3px; 
-            padding-top: 3px; 
+            margin-top: 2px; 
+            padding-top: 2px; 
           }
-          
-          table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; }
-          th { background: #f8fafc; color: #334155; font-weight: 700; text-align: left; padding: 6px 10px; border: 1px solid #cbd5e1; }
-          td { padding: 6px 10px; border: 1px solid #cbd5e1; color: #1e293b; }
+          table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 10.5px; }
+          th { background: #f8fafc; color: #334155; font-weight: 700; text-align: left; padding: 5px 8px; border: 1px solid #cbd5e1; }
+          td { padding: 5px 8px; border: 1px solid #cbd5e1; color: #1e293b; }
           .text-right { text-align: right; }
           .highlight { background: #f0fdf4 !important; font-weight: 700; }
-          
           .footer-box { 
-            margin-top: 18px; 
-            padding: 10px 14px; 
+            margin-top: 14px; 
+            padding: 8px 12px; 
             background: #ffffff; 
             border: 1px solid #cbd5e1; 
             border-radius: 6px; 
-            font-size: 12px; 
+            font-size: 11px; 
           }
           .best-choice { font-weight: 700; color: #16a34a; }
-          .watermark { margin-top: 35px; text-align: center; font-size: 10px; color: #94a3b8; font-family: monospace; }
-          
-          @media print {
-            body { padding: 20px; }
-            @page { margin: 1.2cm; size: auto; }
-          }
+          .watermark { margin-top: 25px; text-align: center; font-size: 9px; color: #94a3b8; font-family: monospace; }
+          @media print { body { padding: 15px; } @page { margin: 1cm; size: auto; } }
         </style>
       </head>
       <body>
@@ -321,13 +299,32 @@ export default function Cotador() {
         ` : ''}
 
         ${Object.keys(aluminiosAgrupados).length > 0 ? `
-          <div class="section-title">COTAÇÃO DE BARRAS E ACESSÓRIOS</div>
+          <div class="section-title">COTAÇÃO DE PERFIS / ALUMÍNIO</div>
           ${Object.entries(aluminiosAgrupados).map(([dist, dados]) => `
             <div class="dist-block">
               <div class="dist-name">${dist}</div>
               ${dados.itens.map(it => `
                 <div class="item-row">
-                  <span>${it.descricao || 'Item de perfil/acessório'}</span>
+                  <span>${it.descricao || 'Perfil/Alumínio'}</span>
+                  <span>R$ ${parseFloat(it.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+              `).join('')}
+              <div class="subtotal-row">
+                <span>Subtotal</span>
+                <span>R$ ${dados.subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+          `).join('')}
+        ` : ''}
+
+        ${Object.keys(acessoriosAgrupados).length > 0 ? `
+          <div class="section-title">COTAÇÃO DE ACESSÓRIOS / FERRAGENS</div>
+          ${Object.entries(acessoriosAgrupados).map(([dist, dados]) => `
+            <div class="dist-block">
+              <div class="dist-name">${dist}</div>
+              ${dados.itens.map(it => `
+                <div class="item-row">
+                  <span>${it.descricao || 'Acessório / Ferragem'}</span>
                   <span>R$ ${parseFloat(it.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                 </div>
               `).join('')}
@@ -346,6 +343,7 @@ export default function Cotador() {
               <tr>
                 <th>Combinação</th>
                 <th class="text-right">Vidros</th>
+                <th class="text-right">Alumínio</th>
                 <th class="text-right">Acessórios</th>
                 <th class="text-right">Total final</th>
               </tr>
@@ -358,6 +356,7 @@ export default function Cotador() {
                     <td>${comb.nome} ${isBest ? '★' : ''}</td>
                     <td class="text-right">R$ ${comb.vidro.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                     <td class="text-right">R$ ${comb.aluminio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td class="text-right">R$ ${comb.acessorio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                     <td class="text-right"><strong>R$ ${comb.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></td>
                   </tr>
                 `
@@ -373,7 +372,7 @@ export default function Cotador() {
         ` : ''}
 
         ${c.observacoes ? `
-          <div style="margin-top: 15px; font-size: 11px; color: #64748b;">
+          <div style="margin-top: 12px; font-size: 10px; color: #64748b;">
             <strong>Observações:</strong> ${c.observacoes}
           </div>
         ` : ''}
@@ -383,9 +382,7 @@ export default function Cotador() {
         </div>
 
         <script>
-          window.onload = function() {
-            window.print();
-          };
+          window.onload = function() { window.print(); };
         </script>
       </body>
       </html>
@@ -396,8 +393,10 @@ export default function Cotador() {
   const compartilharWhatsApp = (c) => {
     const vDist = c.melhor_combinacao?.melhorVidro?.distribuidora || '-'
     const vVal = c.melhor_combinacao?.melhorVidro?.valor?.toFixed(2) || '0.00'
-    const aDist = c.melhor_combinacao?.melhorAluminio?.distribuidora || '-'
-    const aVal = c.melhor_combinacao?.melhorAluminio?.valor?.toFixed(2) || '0.00'
+    const alDist = c.melhor_combinacao?.melhorAluminio?.distribuidora || '-'
+    const alVal = c.melhor_combinacao?.melhorAluminio?.valor?.toFixed(2) || '0.00'
+    const acDist = c.melhor_combinacao?.melhorAcessorio?.distribuidora || '-'
+    const acVal = c.melhor_combinacao?.melhorAcessorio?.valor?.toFixed(2) || '0.00'
     const total = c.valor_total?.toFixed(2) || '0.00'
 
     const texto = `*MILLENIUM GLASS - LEVANTAMENTO DE INSUMOS*\n` +
@@ -405,7 +404,8 @@ export default function Cotador() {
       `📅 *Data:* ${new Date(c.data_cotacao).toLocaleDateString('pt-BR')}\n` +
       `--------------------------------\n` +
       `💎 *Vidros:* ${vDist} (R$ ${vVal})\n` +
-      `🛠 *Alumínios/Acessórios:* ${aDist} (R$ ${aVal})\n` +
+      `🧱 *Alumínios:* ${alDist} (R$ ${alVal})\n` +
+      `🛠 *Acessórios:* ${acDist} (R$ ${acVal})\n` +
       `--------------------------------\n` +
       `💰 *MENOR CUSTO COMBINADO:* R$ ${total}\n` +
       (c.observacoes ? `📝 *Obs:* ${c.observacoes}\n` : '')
@@ -424,7 +424,7 @@ export default function Cotador() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Cotador de Insumos</h1>
-          <p className="text-sm text-slate-500">Lance os orçamentos de distribuidores para fechar pelo menor custo combinado.</p>
+          <p className="text-sm text-slate-500">Cotação dividida por Vidros, Perfis/Alumínio e Ferragens/Acessórios.</p>
         </div>
         <button 
           onClick={abrirModalNovo}
@@ -434,7 +434,7 @@ export default function Cotador() {
         </button>
       </div>
 
-      {/* Barra de Pesquisa */}
+      {/* Busca */}
       <div className="relative">
         <Search size={18} className="absolute left-3.5 top-3 text-slate-400" />
         <input 
@@ -453,23 +453,26 @@ export default function Cotador() {
         <div className="text-center py-16 bg-white border border-dashed border-slate-300 rounded-2xl p-8">
           <p className="text-sm text-slate-500">Nenhuma cotação encontrada.</p>
           <button onClick={abrirModalNovo} className="mt-3 text-sm font-semibold text-blue-600 hover:underline">
-            + Criar a primeira cotação de insumos
+            + Criar cotação
           </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {cotacoesFiltradas.map((c) => {
             const vComb = c.melhor_combinacao?.melhorVidro
-            const aComb = c.melhor_combinacao?.melhorAluminio
+            const alComb = c.melhor_combinacao?.melhorAluminio
+            const acComb = c.melhor_combinacao?.melhorAcessorio
+
+            const nomesComb = [vComb?.distribuidora, alComb?.distribuidora, acComb?.distribuidora].filter(d => d && d !== '-')
 
             return (
               <div key={c.id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
                 
-                <div className="flex justify-between items-start mb-4">
+                <div className="flex justify-between items-start mb-3">
                   <div>
                     <h3 className="font-bold text-slate-800 text-base">{c.cliente_obra}</h3>
                     <span className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-                      <Calendar size={12} /> Cotada em {new Date(c.data_cotacao).toLocaleDateString('pt-BR')}
+                      <Calendar size={12} /> {new Date(c.data_cotacao).toLocaleDateString('pt-BR')}
                     </span>
                   </div>
                   <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
@@ -481,29 +484,39 @@ export default function Cotador() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 py-3 border-y border-slate-100 text-xs">
+                {/* 3 Colunas de Cotações */}
+                <div className="grid grid-cols-3 gap-2 py-3 border-y border-slate-100 text-[11px]">
                   <div>
-                    <span className="text-slate-400 font-medium block mb-1">VIDROS</span>
+                    <span className="text-slate-400 font-bold block mb-1">VIDROS</span>
                     {c.vidros && c.vidros.filter(v => v.distribuidora && parseFloat(v.valor) > 0).length > 0 ? (
                       c.vidros.filter(v => v.distribuidora && parseFloat(v.valor) > 0).map((v, idx) => (
-                        <div key={idx} className="flex justify-between py-0.5 text-slate-700 font-medium">
-                          <span className="truncate pr-1">{v.distribuidora}</span>
-                          <span className="font-bold">R$ {parseFloat(v.valor).toFixed(2)}</span>
+                        <div key={idx} className="truncate text-slate-700 font-medium">
+                          {v.distribuidora}: <strong>R$ {parseFloat(v.valor).toFixed(0)}</strong>
                         </div>
                       ))
-                    ) : <span className="text-slate-400 italic">Sem itens</span>}
+                    ) : <span className="text-slate-400 italic">-</span>}
                   </div>
 
                   <div>
-                    <span className="text-slate-400 font-medium block mb-1">ACESSÓRIOS / ALUMÍNIO</span>
+                    <span className="text-slate-400 font-bold block mb-1">ALUMÍNIO</span>
                     {c.aluminios && c.aluminios.filter(a => a.distribuidora && parseFloat(a.valor) > 0).length > 0 ? (
                       c.aluminios.filter(a => a.distribuidora && parseFloat(a.valor) > 0).map((a, idx) => (
-                        <div key={idx} className="flex justify-between py-0.5 text-slate-700 font-medium">
-                          <span className="truncate pr-1">{a.distribuidora}</span>
-                          <span className="font-bold">R$ {parseFloat(a.valor).toFixed(2)}</span>
+                        <div key={idx} className="truncate text-slate-700 font-medium">
+                          {a.distribuidora}: <strong>R$ {parseFloat(a.valor).toFixed(0)}</strong>
                         </div>
                       ))
-                    ) : <span className="text-slate-400 italic">Sem itens</span>}
+                    ) : <span className="text-slate-400 italic">-</span>}
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 font-bold block mb-1">ACESSÓRIOS</span>
+                    {c.acessorios && c.acessorios.filter(a => a.distribuidora && parseFloat(a.valor) > 0).length > 0 ? (
+                      c.acessorios.filter(a => a.distribuidora && parseFloat(a.valor) > 0).map((a, idx) => (
+                        <div key={idx} className="truncate text-slate-700 font-medium">
+                          {a.distribuidora}: <strong>R$ {parseFloat(a.valor).toFixed(0)}</strong>
+                        </div>
+                      ))
+                    ) : <span className="text-slate-400 italic">-</span>}
                   </div>
                 </div>
 
@@ -514,8 +527,8 @@ export default function Cotador() {
                   <div className="text-lg font-extrabold text-white mt-0.5">
                     R$ {parseFloat(c.valor_total || 0).toFixed(2)}
                   </div>
-                  <p className="text-[11px] text-slate-300 mt-1">
-                    {vComb?.distribuidora !== '-' ? vComb?.distribuidora : 'Vidro'} + {aComb?.distribuidora !== '-' ? aComb?.distribuidora : 'Acessórios'}
+                  <p className="text-[11px] text-slate-300 mt-1 truncate">
+                    {nomesComb.length ? nomesComb.join(' + ') : 'Insumos calculados'}
                   </p>
                 </div>
 
@@ -531,7 +544,7 @@ export default function Cotador() {
                       onClick={() => gerarPdfComparativo(c)}
                       className="flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition cursor-pointer"
                     >
-                      <FileText size={15} /> Gerar PDF
+                      <FileText size={15} /> PDF Comparativo
                     </button>
                     <button 
                       onClick={() => compartilharWhatsApp(c)}
@@ -565,7 +578,7 @@ export default function Cotador() {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Modal 3 Partes */}
       {modalAberta && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in">
@@ -575,7 +588,7 @@ export default function Cotador() {
                 <h2 className="text-base font-bold text-slate-800">
                   {cotacaoEmEdicao ? 'Editar Cotação de Insumos' : 'Nova Cotação de Insumos'}
                 </h2>
-                <p className="text-xs text-slate-500">Lance os preços de cada distribuidora — o menor custo é calculado automaticamente.</p>
+                <p className="text-xs text-slate-500">Vidros, Perfis de Alumínio e Acessórios calculados separadamente.</p>
               </div>
               <button onClick={() => setModalAberta(false)} className="text-slate-400 hover:text-slate-600">
                 <X size={20} />
@@ -589,7 +602,7 @@ export default function Cotador() {
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Cliente / Obra</label>
                     <input 
-                      type="text" required placeholder="Ex.: Residencial Vila Nova - Box e Janelas"
+                      type="text" required placeholder="Ex.: Edifício Miramar - Apto 302"
                       value={clienteObra} onChange={e => setClienteObra(e.target.value)}
                       className="w-full p-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                     />
@@ -619,10 +632,10 @@ export default function Cotador() {
 
                 <hr className="border-slate-100" />
 
-                {/* Vidros */}
+                {/* Seção 1: Vidros */}
                 <div>
                   <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Vidros — Distribuidoras</h3>
+                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">1. Vidros — Distribuidoras</h3>
                     <button type="button" onClick={addVidro} className="text-xs flex items-center gap-1 text-blue-600 font-semibold hover:bg-blue-50 px-2 py-1 rounded-lg">
                       <Plus size={14} /> Item
                     </button>
@@ -631,23 +644,21 @@ export default function Cotador() {
                     {vidros.map((item) => (
                       <div key={item.id} className="flex gap-2 items-center">
                         <input type="text" placeholder="Distribuidora (ex: ExtraGlass)" value={item.distribuidora} onChange={e => updateVidro(item.id, 'distribuidora', e.target.value)} className="flex-1 p-2 border border-slate-300 rounded-lg text-sm" />
-                        <input type="text" placeholder="Descrição do item" value={item.descricao} onChange={e => updateVidro(item.id, 'descricao', e.target.value)} className="flex-[1.5] p-2 border border-slate-300 rounded-lg text-sm" />
+                        <input type="text" placeholder="Descrição do vidro" value={item.descricao} onChange={e => updateVidro(item.id, 'descricao', e.target.value)} className="flex-[1.5] p-2 border border-slate-300 rounded-lg text-sm" />
                         <div className="relative w-32">
                           <span className="absolute left-3 top-2 text-slate-400 text-xs font-bold">R$</span>
                           <input type="number" step="0.01" placeholder="0,00" value={item.valor} onChange={e => updateVidro(item.id, 'valor', e.target.value)} className="w-full pl-8 p-2 border border-slate-300 rounded-lg text-sm" />
                         </div>
-                        <button type="button" onClick={() => removeVidro(item.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg">
-                          <Trash2 size={16} />
-                        </button>
+                        <button type="button" onClick={() => removeVidro(item.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Alumínio / Acessórios */}
+                {/* Seção 2: Alumínios */}
                 <div>
                   <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Acessórios / Alumínio — Distribuidoras</h3>
+                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">2. Alumínios / Perfis — Distribuidoras</h3>
                     <button type="button" onClick={addAluminio} className="text-xs flex items-center gap-1 text-blue-600 font-semibold hover:bg-blue-50 px-2 py-1 rounded-lg">
                       <Plus size={14} /> Item
                     </button>
@@ -655,35 +666,53 @@ export default function Cotador() {
                   <div className="space-y-2">
                     {aluminios.map((item) => (
                       <div key={item.id} className="flex gap-2 items-center">
-                        <input type="text" placeholder="Distribuidora (ex: Aço Alumínio)" value={item.distribuidora} onChange={e => updateAluminio(item.id, 'distribuidora', e.target.value)} className="flex-1 p-2 border border-slate-300 rounded-lg text-sm" />
-                        <input type="text" placeholder="Descrição do item" value={item.descricao} onChange={e => updateAluminio(item.id, 'descricao', e.target.value)} className="flex-[1.5] p-2 border border-slate-300 rounded-lg text-sm" />
+                        <input type="text" placeholder="Distribuidora (ex: Fortal Alumínio)" value={item.distribuidora} onChange={e => updateAluminio(item.id, 'distribuidora', e.target.value)} className="flex-1 p-2 border border-slate-300 rounded-lg text-sm" />
+                        <input type="text" placeholder="Descrição dos perfis" value={item.descricao} onChange={e => updateAluminio(item.id, 'descricao', e.target.value)} className="flex-[1.5] p-2 border border-slate-300 rounded-lg text-sm" />
                         <div className="relative w-32">
                           <span className="absolute left-3 top-2 text-slate-400 text-xs font-bold">R$</span>
                           <input type="number" step="0.01" placeholder="0,00" value={item.valor} onChange={e => updateAluminio(item.id, 'valor', e.target.value)} className="w-full pl-8 p-2 border border-slate-300 rounded-lg text-sm" />
                         </div>
-                        <button type="button" onClick={() => removeAluminio(item.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg">
-                          <Trash2 size={16} />
-                        </button>
+                        <button type="button" onClick={() => removeAluminio(item.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Resultado */}
+                {/* Seção 3: Acessórios */}
+                <div>
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">3. Acessórios / Ferragens — Distribuidoras</h3>
+                    <button type="button" onClick={addAcessorio} className="text-xs flex items-center gap-1 text-blue-600 font-semibold hover:bg-blue-50 px-2 py-1 rounded-lg">
+                      <Plus size={14} /> Item
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {acessorios.map((item) => (
+                      <div key={item.id} className="flex gap-2 items-center">
+                        <input type="text" placeholder="Distribuidora (ex: Jorge Ferragens)" value={item.distribuidora} onChange={e => updateAcessorio(item.id, 'distribuidora', e.target.value)} className="flex-1 p-2 border border-slate-300 rounded-lg text-sm" />
+                        <input type="text" placeholder="Descrição dos kits/roldanas/fechaduras" value={item.descricao} onChange={e => updateAcessorio(item.id, 'descricao', e.target.value)} className="flex-[1.5] p-2 border border-slate-300 rounded-lg text-sm" />
+                        <div className="relative w-32">
+                          <span className="absolute left-3 top-2 text-slate-400 text-xs font-bold">R$</span>
+                          <input type="number" step="0.01" placeholder="0,00" value={item.valor} onChange={e => updateAcessorio(item.id, 'valor', e.target.value)} className="w-full pl-8 p-2 border border-slate-300 rounded-lg text-sm" />
+                        </div>
+                        <button type="button" onClick={() => removeAcessorio(item.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Caixa de Resumo Combinado */}
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-2">
                   <h3 className="text-xs font-bold text-blue-900 uppercase tracking-wider flex items-center gap-2">
-                    <CheckCircle2 size={16} className="text-blue-600" /> Melhor combinação calculada
+                    <CheckCircle2 size={16} className="text-blue-600" /> Menor Custo Combinado (3 Categorias)
                   </h3>
                   {melhores.totalGeral > 0 ? (
                     <div className="text-xs text-blue-800 space-y-1 ml-6 font-medium">
-                      {melhores.melhorVidro.valor > 0 && (
-                        <p>Vidros: <strong>{melhores.melhorVidro.distribuidora}</strong> — R$ {melhores.melhorVidro.valor.toFixed(2)}</p>
-                      )}
-                      {melhores.melhorAluminio.valor > 0 && (
-                        <p>Acessórios: <strong>{melhores.melhorAluminio.distribuidora}</strong> — R$ {melhores.melhorAluminio.valor.toFixed(2)}</p>
-                      )}
-                      <div className="pt-2 mt-2 border-t border-blue-200/60">
-                        <p className="font-bold text-sm text-blue-950">Total Combinado: R$ {melhores.totalGeral.toFixed(2)}</p>
+                      {melhores.melhorVidro.valor > 0 && <p>Vidros: <strong>{melhores.melhorVidro.distribuidora}</strong> — R$ {melhores.melhorVidro.valor.toFixed(2)}</p>}
+                      {melhores.melhorAluminio.valor > 0 && <p>Alumínio: <strong>{melhores.melhorAluminio.distribuidora}</strong> — R$ {melhores.melhorAluminio.valor.toFixed(2)}</p>}
+                      {melhores.melhorAcessorio.valor > 0 && <p>Acessórios: <strong>{melhores.melhorAcessorio.distribuidora}</strong> — R$ {melhores.melhorAcessorio.valor.toFixed(2)}</p>}
+                      <div className="pt-2 mt-2 border-t border-blue-200/60 font-bold text-sm text-blue-950">
+                        Total Combinado: R$ {melhores.totalGeral.toFixed(2)}
                       </div>
                     </div>
                   ) : (
@@ -691,11 +720,10 @@ export default function Cotador() {
                   )}
                 </div>
 
-                {/* Observações */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Observações</label>
                   <textarea 
-                    rows="3" placeholder="Prazos, condições de pagamento, pendências..."
+                    rows="3" placeholder="Prazos, frete, condições comerciais..."
                     value={observacoes} onChange={e => setObservacoes(e.target.value)}
                     className="w-full p-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
                   ></textarea>
@@ -704,16 +732,8 @@ export default function Cotador() {
               </div>
 
               <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
-                <button 
-                  type="button" onClick={() => setModalAberta(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit" disabled={salvando}
-                  className="px-6 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow transition cursor-pointer disabled:opacity-50 flex items-center gap-2"
-                >
+                <button type="button" onClick={() => setModalAberta(false)} className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition cursor-pointer">Cancelar</button>
+                <button type="submit" disabled={salvando} className="px-6 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow transition cursor-pointer disabled:opacity-50 flex items-center gap-2">
                   {salvando ? <Loader2 className="animate-spin" size={14} /> : 'Salvar Cotação'}
                 </button>
               </div>
