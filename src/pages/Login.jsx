@@ -15,35 +15,46 @@ export default function Login({ onLoginSuccess }) {
     setErro('')
 
     try {
-      // Chama a função segura no PostgreSQL sem expor a lista de usuários no navegador
-      const { data, error } = await supabase.rpc('autenticar_usuario', {
-        p_usuario: usuarioInput.trim(),
-        p_senha: senhaInput.trim()
-      })
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('*')
 
-      if (error) throw error
-
-      if (!data || data.length === 0) {
-        setErro('Usuário ou senha incorretos.')
+      if (error) {
+        setErro('Erro ao consultar banco de dados: ' + error.message)
         setLoading(false)
         return
       }
 
-      const usuarioAutenticado = data[0]
+      // Comparação direta sem case-sensitive
+      const usuarioEncontrado = (data || []).find(
+        u => u.usuario?.trim().toLowerCase() === usuarioInput.trim().toLowerCase()
+      )
 
-      const userData = {
-        id: usuarioAutenticado.id,
-        nome: usuarioAutenticado.nome,
-        usuario: usuarioAutenticado.usuario,
-        cargo: usuarioAutenticado.cargo
+      if (!usuarioEncontrado) {
+        setErro('Usuário não encontrado.')
+        setLoading(false)
+        return
       }
 
-      // Sessão temporária encerrada automaticamente ao fechar o navegador
+      if (usuarioEncontrado.senha !== senhaInput.trim()) {
+        setErro('Senha incorreta.')
+        setLoading(false)
+        return
+      }
+
+      const userData = {
+        id: usuarioEncontrado.id,
+        nome: usuarioEncontrado.nome,
+        usuario: usuarioEncontrado.usuario,
+        cargo: usuarioEncontrado.cargo
+      }
+
+      // Sessão temporária encerrada automaticamente ao fechar a aba
       sessionStorage.setItem('vidracaria_user', JSON.stringify(userData))
       localStorage.removeItem('vidracaria_user')
       onLoginSuccess(userData)
     } catch (err) {
-      setErro('Falha de conexão com o servidor.')
+      setErro('Erro de conexão ao tentar fazer login.')
     } finally {
       setLoading(false)
     }
@@ -69,7 +80,7 @@ export default function Login({ onLoginSuccess }) {
             <div className="relative flex items-center">
               <User size={18} className="absolute left-3 text-slate-400" />
               <input 
-                type="text" required placeholder="Ex: suporte"
+                type="text" required placeholder="Ex: Rafaelle"
                 value={usuarioInput} onChange={(e) => setUsuarioInput(e.target.value)}
                 className="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-600 focus:outline-none"
               />
@@ -97,7 +108,7 @@ export default function Login({ onLoginSuccess }) {
                 onTouchEnd={() => setMostrarSenha(false)}
                 onClick={() => setMostrarSenha(!mostrarSenha)}
                 className="absolute right-3 text-slate-400 hover:text-slate-600 cursor-pointer p-1"
-                title="Clique ou segure para visualizar"
+                title="Visualizar senha"
               >
                 {mostrarSenha ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
@@ -121,7 +132,7 @@ export default function Login({ onLoginSuccess }) {
 
       <div className="absolute bottom-4 text-center select-none">
         <span className="text-[10px] tracking-widest text-slate-600 font-mono uppercase">
-          Gv Dev Systems • Conexão Segura SSL/TLS
+          Gv Dev Systems • Soluções Web
         </span>
       </div>
     </div>
