@@ -15,37 +15,35 @@ export default function Login({ onLoginSuccess }) {
     setErro('')
 
     try {
-      const { data, error } = await supabase
-        .from('usuarios')
-        .select('*')
-        .eq('usuario', usuarioInput.trim())
-        .single()
+      // Chama a função segura no PostgreSQL sem expor a lista de usuários no navegador
+      const { data, error } = await supabase.rpc('autenticar_usuario', {
+        p_usuario: usuarioInput.trim(),
+        p_senha: senhaInput.trim()
+      })
 
-      if (error || !data) {
-        setErro('Usuário não encontrado.')
+      if (error) throw error
+
+      if (!data || data.length === 0) {
+        setErro('Usuário ou senha incorretos.')
         setLoading(false)
         return
       }
 
-      if (data.senha !== senhaInput.trim()) {
-        setErro('Senha incorreta.')
-        setLoading(false)
-        return
-      }
+      const usuarioAutenticado = data[0]
 
       const userData = {
-        id: data.id,
-        nome: data.nome,
-        usuario: data.usuario,
-        cargo: data.cargo
+        id: usuarioAutenticado.id,
+        nome: usuarioAutenticado.nome,
+        usuario: usuarioAutenticado.usuario,
+        cargo: usuarioAutenticado.cargo
       }
 
-      // sessionStorage encerra a sessão automaticamente ao fechar o navegador/aba
+      // Sessão temporária encerrada automaticamente ao fechar o navegador
       sessionStorage.setItem('vidracaria_user', JSON.stringify(userData))
-      localStorage.removeItem('vidracaria_user') // Limpa resíduos antigos
+      localStorage.removeItem('vidracaria_user')
       onLoginSuccess(userData)
     } catch (err) {
-      setErro('Erro de conexão ao tentar fazer login.')
+      setErro('Falha de conexão com o servidor.')
     } finally {
       setLoading(false)
     }
@@ -71,7 +69,7 @@ export default function Login({ onLoginSuccess }) {
             <div className="relative flex items-center">
               <User size={18} className="absolute left-3 text-slate-400" />
               <input 
-                type="text" required placeholder="Ex: Samuel"
+                type="text" required placeholder="Ex: suporte"
                 value={usuarioInput} onChange={(e) => setUsuarioInput(e.target.value)}
                 className="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-600 focus:outline-none"
               />
@@ -123,7 +121,7 @@ export default function Login({ onLoginSuccess }) {
 
       <div className="absolute bottom-4 text-center select-none">
         <span className="text-[10px] tracking-widest text-slate-600 font-mono uppercase">
-          Gv Dev Systems • Soluções Web
+          Gv Dev Systems • Conexão Segura SSL/TLS
         </span>
       </div>
     </div>
