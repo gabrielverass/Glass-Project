@@ -15,30 +15,25 @@ export default function Login({ onLoginSuccess }) {
     setErro('')
 
     try {
-      const { data, error } = await supabase
+      // Busca apenas o registro do usuário digitado no banco
+      const { data: usuarioEncontrado, error } = await supabase
         .from('usuarios')
-        .select('*')
+        .select('id, nome, usuario, senha, cargo')
+        .ilike('usuario', usuarioInput.trim())
+        .maybeSingle()
 
       if (error) {
         setErro('Erro ao consultar banco de dados: ' + error.message)
-        setLoading(false)
         return
       }
 
-      // Comparação direta sem case-sensitive
-      const usuarioEncontrado = (data || []).find(
-        u => u.usuario?.trim().toLowerCase() === usuarioInput.trim().toLowerCase()
-      )
-
       if (!usuarioEncontrado) {
         setErro('Usuário não encontrado.')
-        setLoading(false)
         return
       }
 
       if (usuarioEncontrado.senha !== senhaInput.trim()) {
         setErro('Senha incorreta.')
-        setLoading(false)
         return
       }
 
@@ -80,8 +75,11 @@ export default function Login({ onLoginSuccess }) {
             <div className="relative flex items-center">
               <User size={18} className="absolute left-3 text-slate-400" />
               <input 
-                type="text" required placeholder="Ex: Rafaelle"
-                value={usuarioInput} onChange={(e) => setUsuarioInput(e.target.value)}
+                type="text" 
+                required 
+                placeholder="Ex: Rafaelle"
+                value={usuarioInput} 
+                onChange={(e) => setUsuarioInput(e.target.value)}
                 className="w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-xl text-sm focus:border-blue-600 focus:outline-none"
               />
             </div>
@@ -116,7 +114,8 @@ export default function Login({ onLoginSuccess }) {
           </div>
 
           <button 
-            type="submit" disabled={loading}
+            type="submit" 
+            disabled={loading}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition shadow-md disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
           >
             {loading ? <Loader2 className="animate-spin" size={18} /> : 'Acessar Sistema'}
