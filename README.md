@@ -14,7 +14,7 @@
 
 ## 🎯 Contexto e Desafio de Negócio
 
-Empresas no segmento de vidros e esquadrias lidam com processos operacionais altamente suscetíveis a perdas e gargalos: precificação dependente de cálculos manuais de metros quadrados ($m^2$), descompasso entre entradas e saídas de estoque e falta de visibilidade sobre o estágio real de produção de cada pedido.
+Empresas no segmento de vidros e esquadrias lidam com processos operacionais altamente suscetíveis a perdas e gargalos: precificação dependente de cálculos manuais de metros quadrados (m²), descompasso entre entradas e saídas de estoque e falta de visibilidade sobre o estágio real de produção de cada pedido.
 
 O **Glass Project** foi projetado para atuar como uma central operacional unificada, garantindo que cada colaborador acesse apenas as ferramentas necessárias à sua rotina através de permissões granulares de acesso.
 
@@ -43,13 +43,13 @@ O **Glass Project** foi projetado para atuar como uma central operacional unific
 
 ---
 
-## 🛠️ Tecnologias Utilizadas
+## 🛠️️ Tecnologias Utilizadas
 
-- **Front-end:** [React](https://react.dev/) com inicialização e empacotamento via [Vite](https://vitejs.dev/).
+- **Front-end:** [React](https://react.dev/) com empacotamento via [Vite](https://vitejs.dev/).
 - **Estilização:** [Tailwind CSS](https://tailwindcss.com/) para design responsivo e consistente.
 - **Ícones & UI:** [Lucide React](https://lucide.dev/).
-- **Back-end & Persistência:** [Supabase](https://supabase.com/) com banco de dados relacional PostgreSQL.
-- **Segurança:** Isolamento de chaves via variáveis de ambiente (`.env`), políticas de banco de dados e controle de rotas no cliente.
+- **Back-end & Persistência:** [Supabase](https://supabase.com/) com PostgreSQL.
+- **Segurança:** Isolamento de credenciais via `.env` e controle de acesso no cliente.
 
 ---
 
@@ -76,41 +76,59 @@ Glass-Project/
 ├── tailwind.config.js      # Customização de temas e componentes Tailwind
 ├── vite.config.js          # Configuração de build e plugins do Vite
 └── README.md               # Documentação técnica do projeto
+```
 
-⚙️ Instalação e Execução Local
-Pré-requisitos
-Node.js (versão 18 ou superior)
+---
 
-Gerenciador de pacotes npm ou yarn
+## ⚙️ Instalação e Execução Local
 
-1. Clonar o repositório
-Bash
-git clone [https://github.com/gabrielverass/Glass-Project.git](https://github.com/gabrielverass/Glass-Project.git)
+### Pré-requisitos
+- [Node.js](https://nodejs.org/) (versão 18 ou superior)
+- Gerenciador de pacotes `npm` ou `yarn`
+
+### 1. Clonar o repositório
+```bash
+git clone https://github.com/gabrielverass/Glass-Project.git
 cd Glass-Project
-2. Instalar as dependências
-Bash
+```
+
+### 2. Instalar as dependências
+```bash
 npm install
-3. Configurar as variáveis de ambiente
-Crie o arquivo .env na raiz do projeto com base no modelo de exemplo:
+```
 
-Bash
+### 3. Configurar as variáveis de ambiente
+Crie o arquivo `.env` na raiz do projeto com base no modelo de exemplo:
+
+```bash
 cp .env.example .env
-Abra o arquivo .env e insira suas credenciais do projeto no Supabase:
+```
 
-Snippet de código
-VITE_SUPABASE_URL=[https://seu-projeto.supabase.co](https://seu-projeto.supabase.co)
+Abra o arquivo `.env` e insira suas credenciais do projeto no Supabase:
+
+```env
+VITE_SUPABASE_URL=https://seu-projeto.supabase.co
 VITE_SUPABASE_ANON_KEY=sua-chave-anonima-aqui
-4. Executar em modo de desenvolvimento
-Bash
+```
+
+### 4. Executar em modo de desenvolvimento
+```bash
 npm run dev
-Abra a URL indicada no terminal (geralmente http://localhost:5173) no seu navegador.
+```
 
-🔒 Segurança e Tratamento de Dados
-Segredos e Credenciais: Nenhuma chave privada ou credencial de acesso está versionada neste repositório. O arquivo .env é mantido exclusivamente no ambiente local.
+Abra a URL indicada no terminal (geralmente `http://localhost:5173`) no seu navegador.
 
-Isolamento de Dados: Dados comerciais reais não constam na base versionada no GitHub, assegurando sigilo e conformidade operacional.
+---
 
-👨‍💻 Autor
-Desenvolvido por Gabriel Veras.
+## 🔒 Segurança e Tratamento de Dados
 
-GitHub: @gabrielverass
+- **Segredos e Credenciais:** Nenhuma chave privada ou credencial de acesso está versionada neste repositório. O arquivo `.env` é mantido exclusivamente no ambiente local.
+- **Isolamento de Dados:** Dados comerciais e registros reais da empresa não constam na base versionada no GitHub, assegurando sigilo e conformidade operacional.
+
+---
+
+## 👨‍💻 Autor
+
+Desenvolvido por **Gabriel Veras**.
+
+- **GitHub:** [@gabrielverass](https://github.com/gabrielverass)
